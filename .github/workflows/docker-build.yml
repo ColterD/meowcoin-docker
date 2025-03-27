@@ -53,8 +53,8 @@ jobs:
         run: |
           VERSION=${{ needs.check-and-build.outputs.new_version }}
           VERSION_NUMBER=${VERSION#Meow-v}
-          echo "full_version=$VERSION" >> $GITHUB_OUTPUT
-          echo "version_number=$VERSION_NUMBER" >> $GITHUB_OUTPUT
+          echo "full_version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_number=${VERSION_NUMBER}" >> $GITHUB_OUTPUT
           
       - name: Build and push for ${{ matrix.platform }}
         uses: docker/build-push-action@v4
@@ -79,7 +79,8 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
-        continue-on-error: true
+          # Changed to fail on high vulnerabilities
+          continue-on-error: false
       
   notify:
     needs: [check-and-build, build-and-push]

@@ -15,25 +15,6 @@ That's it! Your Meowcoin node is now running.
 
 ---
 
-## What You Get
-
-- Latest Meowcoin Core version (currently running: **Meow-v2.0.5**)
-- Automatic updates when new versions are released
-- Data persistence between restarts
-- Secure setup with non-root user
-- Multi-architecture support (AMD64 and ARM64)
-
----
-
-## Security Features
-
-- RPC authentication with automatically generated credentials
-- Limited network access by default
-- Non-root container user
-- Regular security scanning
-
----
-
 ## Configuration
 
 ### Default Ports
@@ -49,12 +30,14 @@ To use custom Meowcoin settings, modify the environment variables in `docker-com
 
 ```yaml
 environment:
-  - RPC_USER=meowcoin
-  - RPC_PASSWORD=changeme
-  - RPC_BIND=0.0.0.0
-  - RPC_ALLOWIP=172.0.0.0/8
+  - RPC_USER=your_custom_username
+  - RPC_PASSWORD=your_strong_password
+  - RPC_BIND=127.0.0.1  # Only allow local connections
+  - RPC_ALLOWIP=127.0.0.1  # Only allow local connections
   - MEOWCOIN_OPTS="-printtoconsole"
 ```
+
+> **IMPORTANT**: Always change the default RPC credentials for production use.
 
 ---
 
@@ -72,13 +55,51 @@ docker exec meowcoin-node meowcoin-cli -rpcuser=meowcoin -rpcpassword=changeme g
 docker exec meowcoin-node meowcoin-cli -rpcuser=meowcoin -rpcpassword=changeme getwalletinfo
 ```
 
+### Viewing Generated RPC Password
+
+If you didn't specify an RPC password, one was generated for you. View it with:
+
+```bash
+docker logs meowcoin-node | grep "Generated RPC password:"
+```
+
 ---
 
-## Security Notes
+## Building Locally
 
-- **Important:** For production use, change the default RPC credentials.
-- Consider restricting RPC access to specific IPs.
-- Store sensitive credentials in Docker secrets instead of environment variables.
+To build the Docker image locally:
+
+```bash
+# Clone the repository
+git clone https://github.com/colterd/meowcoin-docker.git
+cd meowcoin-docker
+
+# Build the image
+docker build -t meowcoin-docker:local .
+
+# Run with local image
+docker-compose -f docker-compose.local.yml up -d
+```
+
+---
+
+## SSL/TLS Configuration
+
+For secure RPC communication, create an SSL certificate and update your configuration:
+
+```bash
+# Generate self-signed certificate
+openssl req -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out meowcoin.crt -keyout meowcoin.key
+
+# Add to docker-compose.yml volumes:
+volumes:
+  - ./meowcoin.crt:/home/meowcoin/.meowcoin/meowcoin.crt
+  - ./meowcoin.key:/home/meowcoin/.meowcoin/meowcoin.key
+
+# Add to environment variables:
+environment:
+  - CUSTOM_OPTS="rpcssl=1 rpcsslcertificatechainfile=/home/meowcoin/.meowcoin/meowcoin.crt rpcsslprivatekeyfile=/home/meowcoin/.meowcoin/meowcoin.key"
+```
 
 ---
 
@@ -99,11 +120,17 @@ docker volume rm meowcoin-data
 docker-compose up -d
 ```
 
+**RPC connection issues?**
+
+1. Verify RPC credentials are correct
+2. Check RPC bind address and allowip settings
+3. Ensure ports are not blocked by firewall
+
 ---
 
 ## Contributing
 
-Found a bug or want to suggest improvements? [Open an issue on GitHub](https://github.com/your-repo-here/issues).
+Found a bug or want to suggest improvements? [Open an issue on GitHub](https://github.com/colterd/meowcoin-docker/issues).
 
 ---
 
