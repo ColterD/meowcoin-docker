@@ -1,0 +1,19 @@
+# Node Configuration
+server=1
+listen=1
+txindex=1
+
+# Network Settings
+rpcbind=${RPC_BIND:-127.0.0.1}
+rpcallowip=${RPC_ALLOWIP:-127.0.0.1}
+
+# RPC Authentication (required)
+rpcuser=${RPC_USER}
+rpcpassword=${RPC_PASSWORD}
+
+# Settings
+printtoconsole=1
+logtimestamps=1
+
+# Custom options
+${CUSTOM_OPTS}

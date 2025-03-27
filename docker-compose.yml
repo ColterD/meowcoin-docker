@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   meowcoin:
     image: colterd/meowcoin-docker:latest
@@ -9,7 +11,18 @@ services:
       - "8333:8333"
     restart: unless-stopped
     environment:
-      - MEOWCOIN_OPTS="-rpcallowip=0.0.0.0/0 -rpcbind=0.0.0.0 -printtoconsole"
+      - RPC_USER=meowcoin
+      - RPC_PASSWORD=changeme
+      - RPC_BIND=0.0.0.0
+      - RPC_ALLOWIP=172.0.0.0/8
+      - MEOWCOIN_OPTS="-printtoconsole"
+    healthcheck:
+      test: ["CMD", "meowcoin-cli", "getblockchaininfo"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5m
 
 volumes:
   meowcoin-data:
+    name: meowcoin-data

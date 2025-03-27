@@ -1,14 +1,23 @@
 # Build stage
-FROM ubuntu:20.04 AS builder
+FROM ubuntu:22.04 AS builder
+
+# Set ARG for BuildKit cache control
+ARG BUILDKIT_INLINE_CACHE=1
+
+# Add labels for better maintainability
+LABEL org.opencontainers.image.source="https://github.com/Meowcoin-Foundation/Meowcoin-docker"
+LABEL org.opencontainers.image.description="Docker image for Meowcoin Core"
+LABEL org.opencontainers.image.licenses="MIT"
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libssl-dev \
     libboost-all-dev \
     libminiupnpc-dev \
     git \
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -17,43 +26,50 @@ WORKDIR /build
 # Copy version file
 COPY meowcoin_version.txt .
 
-# Build Meowcoin
+# Build Meowcoin with proper caching
 RUN MEOWCOIN_VERSION=$(cat meowcoin_version.txt) && \
-    git clone https://github.com/Meowcoin-Foundation/Meowcoin.git && \
+    git clone --depth 1 --branch $MEOWCOIN_VERSION https://github.com/Meowcoin-Foundation/Meowcoin.git && \
     cd Meowcoin && \
-    git checkout $MEOWCOIN_VERSION && \
     ./autogen.sh && \
-    ./configure --prefix=/usr && \
+    ./configure --prefix=/usr --disable-tests --disable-bench && \
     make -j$(nproc) && \
     make install DESTDIR=/install
 
 # Runtime stage
-FROM ubuntu:20.04
+FROM ubuntu:22.04
+
+# Add labels
+LABEL maintainer="ColterD <colterdahlberg@gmail.com>"
+LABEL description="Docker image for Meowcoin Core"
 
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    libssl1.1 \
-    libboost-system1.71.0 \
-    libboost-filesystem1.71.0 \
-    libboost-thread1.71.0 \
-    libboost-chrono1.71.0 \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 \
+    libboost-system1.74.0 \
+    libboost-filesystem1.74.0 \
+    libboost-thread1.74.0 \
+    libboost-chrono1.74.0 \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Create meowcoin user
-RUN useradd -r -m -U meowcoin
+# Create meowcoin user with specific UID/GID for better security
+RUN groupadd -r meowcoin -g 1000 && \
+    useradd -r -m -u 1000 -g meowcoin meowcoin
 
 # Copy binaries from builder
 COPY --from=builder /install/usr/bin/meowcoin* /usr/bin/
 
-# Set metadata
-LABEL maintainer="ColterD <colterdahlberg@gmail.com>"
-LABEL version="1.0"
-LABEL description="Docker image for Meowcoin Core"
+# Copy default config template
+COPY config/meowcoin.conf.template /home/meowcoin/.meowcoin/meowcoin.conf.template
+
+# Copy entrypoint script
+COPY scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Copy version information
 COPY meowcoin_version.txt /meowcoin_version.txt
 
-# Data directory
+# Data directory with proper permissions
 RUN mkdir -p /home/meowcoin/.meowcoin && \
     chown -R meowcoin:meowcoin /home/meowcoin/.meowcoin
 
@@ -67,9 +83,12 @@ VOLUME ["/home/meowcoin/.meowcoin"]
 # Expose ports
 EXPOSE 8332 8333
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5m \
-  CMD meowcoin-cli getblockchaininfo || exit 1
+# Health check with realistic timeouts accounting for initial sync
+HEALTHCHECK --interval=1m --timeout=30s --start-period=30m --retries=3 \
+  CMD meowcoin-cli -datadir=/home/meowcoin/.meowcoin getblockchaininfo > /dev/null 2>&1 || exit 1
 
-# Command to run
+# Set entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command if no arguments provided
 CMD ["meowcoind"]
