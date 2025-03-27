@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version_changed: ${{ steps.version_check.outputs.version_changed }}
-      version: ${{ steps.version_check.outputs.new_version }}
+      new_version: ${{ steps.version_check.outputs.new_version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -23,12 +23,6 @@ jobs:
           chmod +x ./version_check.sh
           export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
           ./version_check.sh
-          if [ $? -eq 0 ]; then
-            echo "version_changed=true" >> $GITHUB_OUTPUT
-            echo "new_version=$(cat meowcoin_version.txt)" >> $GITHUB_OUTPUT
-          else
-            echo "version_changed=false" >> $GITHUB_OUTPUT
-          fi
 
   build-and-push:
     needs: check-and-build
@@ -57,7 +51,7 @@ jobs:
       - name: Extract version components
         id: version
         run: |
-          VERSION=${{ needs.check-and-build.outputs.version }}
+          VERSION=${{ needs.check-and-build.outputs.new_version }}
           VERSION_NUMBER=${VERSION#Meow-v}
           echo "full_version=$VERSION" >> $GITHUB_OUTPUT
           echo "version_number=$VERSION_NUMBER" >> $GITHUB_OUTPUT
@@ -97,10 +91,10 @@ jobs:
         run: |
           if [ "${{ needs.build-and-push.result }}" = "success" ]; then
             echo "status=success" >> $GITHUB_OUTPUT
-            echo "message=🎉 Successfully built and pushed Meowcoin ${{ needs.check-and-build.outputs.version }}" >> $GITHUB_OUTPUT
+            echo "message=🎉 Successfully built and pushed Meowcoin ${{ needs.check-and-build.outputs.new_version }}" >> $GITHUB_OUTPUT
           else
             echo "status=failure" >> $GITHUB_OUTPUT
-            echo "message=❌ Failed to build Meowcoin ${{ needs.check-and-build.outputs.version }}" >> $GITHUB_OUTPUT
+            echo "message=❌ Failed to build Meowcoin ${{ needs.check-and-build.outputs.new_version }}" >> $GITHUB_OUTPUT
           fi
       
       - name: Update build status
@@ -111,7 +105,7 @@ jobs:
             const issue = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: 'Build ${{ steps.check.outputs.status }}: Meowcoin ${{ needs.check-and-build.outputs.version }}',
+              title: 'Build ${{ steps.check.outputs.status }}: Meowcoin ${{ needs.check-and-build.outputs.new_version }}',
               body: '${{ steps.check.outputs.message }}',
               labels: ['automated', 'build-status']
             });

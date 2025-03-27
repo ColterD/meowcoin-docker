@@ -12,7 +12,7 @@ fi
 
 if [ -z "$RPC_PASSWORD" ]; then
   export RPC_PASSWORD=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 32)
-  echo "Generated random RPC password: $RPC_PASSWORD"
+  echo "Generated random RPC password (not logged for security)"
 fi
 
 # Additional options

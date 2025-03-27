@@ -44,7 +44,7 @@ done
 # If all attempts failed
 if [ -z "$LATEST_VERSION" ]; then
   echo "Error: Could not fetch latest version from GitHub API after $MAX_ATTEMPTS attempts"
-  exit 1
+  exit 2
 fi
 
 # Compare versions (semantic version comparison)
@@ -89,8 +89,10 @@ if version_gt "$LATEST_WITHOUT_PREFIX" "$CURRENT_WITHOUT_PREFIX"; then
   
   echo "Version updated to $LATEST_VERSION"
   echo "::set-output name=new_version::$LATEST_VERSION"
+  echo "::set-output name=version_changed::true"
   exit 0
 else
   echo "Already using the latest version: $CURRENT_VERSION"
-  exit 1  # Non-zero exit for "no change" to control workflow
+  echo "::set-output name=version_changed::false"
+  exit 0  # Changed to exit 0 for "no change" to simplify workflow logic
 fi

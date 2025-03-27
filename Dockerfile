@@ -5,7 +5,7 @@ FROM ubuntu:22.04 AS builder
 ARG BUILDKIT_INLINE_CACHE=1
 
 # Add labels for better maintainability
-LABEL org.opencontainers.image.source="https://github.com/Meowcoin-Foundation/Meowcoin-docker"
+LABEL org.opencontainers.image.source="https://github.com/ColterD/meowcoin-docker"
 LABEL org.opencontainers.image.description="Docker image for Meowcoin Core"
 LABEL org.opencontainers.image.licenses="MIT"
 
@@ -50,6 +50,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libboost-thread1.74.0 \
     libboost-chrono1.74.0 \
     ca-certificates \
+    gettext-base \
     && rm -rf /var/lib/apt/lists/*
 
 # Create meowcoin user with specific UID/GID for better security
@@ -62,9 +63,16 @@ COPY --from=builder /install/usr/bin/meowcoin* /usr/bin/
 # Copy default config template
 COPY config/meowcoin.conf.template /home/meowcoin/.meowcoin/meowcoin.conf.template
 
-# Copy entrypoint script
+# Copy scripts
 COPY scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Create healthcheck script (doesn't expose credentials in Docker inspect)
+RUN echo '#!/bin/sh \n\
+meowcoin-cli -conf=/home/meowcoin/.meowcoin/meowcoin.conf getblockchaininfo >/dev/null 2>&1 \n\
+exit $?' > /healthcheck.sh && \
+chmod +x /healthcheck.sh && \
+chown meowcoin:meowcoin /healthcheck.sh
 
 # Copy version information
 COPY meowcoin_version.txt /meowcoin_version.txt
@@ -83,9 +91,9 @@ VOLUME ["/home/meowcoin/.meowcoin"]
 # Expose ports
 EXPOSE 8332 8333
 
-# Health check with realistic timeouts accounting for initial sync
+# Health check using script (doesn't expose credentials)
 HEALTHCHECK --interval=1m --timeout=30s --start-period=30m --retries=3 \
-  CMD meowcoin-cli -datadir=/home/meowcoin/.meowcoin getblockchaininfo > /dev/null 2>&1 || exit 1
+  CMD /healthcheck.sh
 
 # Set entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
