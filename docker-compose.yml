@@ -1,0 +1,15 @@
+services:
+  meowcoin:
+    image: colterd/meowcoin:latest
+    container_name: meowcoin-node
+    volumes:
+      - meowcoin-data:/home/meowcoin/.meowcoin
+    ports:
+      - "8332:8332"
+      - "8333:8333"
+    restart: unless-stopped
+    environment:
+      - MEOWCOIN_OPTS="-rpcallowip=0.0.0.0/0 -rpcbind=0.0.0.0 -printtoconsole"
+
+volumes:
+  meowcoin-data:
