@@ -1,6 +1,6 @@
 services:
   meowcoin:
-    image: colterd/meowcoin:latest
+    image: colterd/meowcoin-docker:latest
     container_name: meowcoin-node
     volumes:
       - meowcoin-data:/home/meowcoin/.meowcoin
