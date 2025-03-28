@@ -1,56 +1,29 @@
 #!/bin/bash
+# scripts/entrypoint/main.sh
 # Main entrypoint script for Meowcoin Docker container
 
-# Source core libraries
-source /usr/local/bin/core/utils.sh
-source /usr/local/bin/core/config.sh
-source /usr/local/bin/core/monitor.sh
-source /usr/local/bin/core/backup.sh
-source /usr/local/bin/core/security.sh
+# Source dependency manager
+source /usr/local/bin/core/dependencies.sh
 
-# Log startup with timestamp
+# Log startup
 log_info "Starting Meowcoin node container"
-log_info "Meowcoin version: $(cat /meowcoin_version.txt)"
+log_info "Meowcoin version: $(cat /meowcoin_version.txt 2>/dev/null || echo 'unknown')"
 
-# Initialize systems
-log_info "Initializing systems"
-utils_init       # Initialize utilities
-config_init      # Initialize configuration
-security_init    # Initialize security features
-monitor_init     # Initialize monitoring
-backup_init      # Initialize backup system
+# Initialize all modules in proper order
+initialize_all_modules
 
-# Setup environment
-log_info "Setting up environment"
-setup_environment
+# Set up all modules
+setup_all_modules
 
-# Validate and update configuration
-log_info "Validating configuration"
-validate_configuration
-
-# Setup security features
-log_info "Setting up security features"
-security_setup
-
-# Setup monitoring features
-log_info "Setting up monitoring features"
-monitor_setup
-
-# Setup backup features
-log_info "Setting up backup features"
-backup_setup
-
-# Initialize plugin system if enabled
-if [[ "${ENABLE_PLUGINS:-false}" == "true" ]]; then
-    log_info "Initializing plugin system"
-    if [[ -x /usr/local/bin/core/plugins.sh ]]; then
-        source /usr/local/bin/core/plugins.sh
-        plugins_init
+# Check for version changes and handle atomic updates if enabled
+if [ "${ATOMIC_UPDATE_ENABLED:-true}" = "true" ] && type check_version_change >/dev/null 2>&1; then
+    if check_version_change; then
+        run_atomic_update
     fi
 fi
 
-# Execute startup hooks
-if [[ "${ENABLE_PLUGINS:-false}" == "true" ]]; then
+# Execute startup hooks if plugins enabled
+if [ "${ENABLE_PLUGINS:-false}" = "true" ] && type plugins_execute_hooks >/dev/null 2>&1; then
     log_info "Executing startup hooks"
     plugins_execute_hooks "startup"
 fi
@@ -62,8 +35,8 @@ log_info "Configuration complete, starting supervisord"
 function shutdown_handler() {
     log_info "Shutdown signal received, cleaning up"
     
-    # Execute shutdown hooks
-    if [[ "${ENABLE_PLUGINS:-false}" == "true" ]]; then
+    # Execute shutdown hooks if plugins enabled
+    if [ "${ENABLE_PLUGINS:-false}" = "true" ] && type plugins_execute_hooks >/dev/null 2>&1; then
         plugins_execute_hooks "shutdown"
     fi
     
@@ -75,4 +48,4 @@ function shutdown_handler() {
 trap shutdown_handler SIGTERM SIGINT
 
 # Keep container running with supervisord
-exec supervisord -c /etc/supervisor/conf.d/meowcoin.conf
+exec supervisord -c /etc/supervisor/conf.d/supervisord.conf

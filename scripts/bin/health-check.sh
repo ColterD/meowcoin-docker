@@ -1,4 +1,5 @@
 #!/bin/bash
+# scripts/bin/health-check.sh
 # Health check script for Meowcoin Docker
 
 # Source core libraries

@@ -1,0 +1,57 @@
+name: Meowcoin Docker CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Run unit tests
+        run: |
+          chmod +x tests/unit/run_tests.sh
+          ./tests/unit/run_tests.sh
+          
+      - name: Run linting
+        run: |
+          docker run --rm -v $(pwd):/code koalaman/shellcheck:latest scripts/core/*.sh scripts/entrypoint/*.sh
+          
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Build test image
+        run: docker build -t meowcoin-docker:test .
+        
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'meowcoin-docker:test'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+          
+  build:
+    needs: [test, security-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: colterd/meowcoin-docker:latest

@@ -1,3 +1,4 @@
+# .dockerignore
 .git
 .github
 docs
@@ -8,3 +9,5 @@ tests
 .vscode
 **/node_modules
 **/*.log
+security/secrets/*
+!security/secrets/*.example
