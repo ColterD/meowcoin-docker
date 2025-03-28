@@ -1,4 +1,4 @@
-# build/Dockerfile
+# Dockerfile
 FROM alpine:3.19.1 AS builder
 
 # Set ARG for BuildKit cache control and version
@@ -12,7 +12,7 @@ LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.vendor="ColterD"
 LABEL org.opencontainers.image.documentation="https://github.com/colterd/meowcoin-docker/wiki"
 
-# Install build dependencies - pinned versions for reproducibility
+# Install build dependencies in a single layer
 RUN apk add --no-cache \
     build-base=0.5-r3 \
     openssl-dev=3.1.4-r5 \
@@ -25,7 +25,8 @@ RUN apk add --no-cache \
     autoconf=2.71-r2 \
     automake=1.16.5-r1 \
     libtool=2.4.7-r1 \
-    go=1.21.7-r0
+    go=1.21.7-r0 && \
+    mkdir -p /build /go
 
 # Set working directory
 WORKDIR /build
@@ -82,7 +83,6 @@ RUN MEOWCOIN_VERSION=$(cat meowcoin_version.txt) && \
 
 # Build Prometheus exporter
 RUN export GOPATH=/go && \
-    mkdir -p /go && \
     echo "Building Prometheus exporter..." && \
     GO111MODULE=on go install github.com/prometheus/meowcoin_exporter@v0.3.0 && \
     mkdir -p /install/usr/local/bin/ && \
@@ -118,7 +118,7 @@ LABEL org.opencontainers.image.documentation="https://github.com/colterd/meowcoi
 LABEL org.opencontainers.image.created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 LABEL org.opencontainers.image.version="$(cat /meowcoin_version.txt 2>/dev/null || echo 'unknown')"
 
-# Install runtime dependencies in a single layer to reduce image size
+# Install runtime dependencies in a single layer
 RUN apk add --no-cache \
     openssl=3.1.4-r5 \
     boost-filesystem=1.82.0-r1 \
@@ -135,8 +135,9 @@ RUN apk add --no-cache \
     tzdata=2023d-r0 \
     shadow=4.14.2-r0 \
     curl=8.5.0-r0 \
-    tini=0.19.0-r1 && \
-    rm -rf /var/cache/apk/*
+    bc=1.07.1-r2 \
+    openssl=3.1.4-r5 \
+    tini=0.19.0-r1
 
 # Create meowcoin user with specific UID/GID for better security
 RUN addgroup -g 1000 -S meowcoin && \
@@ -161,7 +162,8 @@ COPY --from=builder /install/usr/bin/meowcoin* /usr/bin/
 COPY --from=builder /install/usr/local/bin/ /usr/local/bin/
 COPY --from=builder /install/build-info.txt /build-info.txt
 
-# Copy scripts and configuration in one layer
+# Copy scripts and configuration with optimized layers
+COPY scripts/lib/ /usr/local/bin/lib/
 COPY scripts/entrypoint/ /usr/local/bin/entrypoint/
 COPY scripts/backup/ /usr/local/bin/backup/
 COPY scripts/monitoring/ /usr/local/bin/monitoring/
@@ -172,7 +174,7 @@ COPY config/templates/ /etc/meowcoin/templates/
 COPY meowcoin_version.txt /meowcoin_version.txt
 
 # Setup script permissions
-RUN chmod -R +x /usr/local/bin/entrypoint/ /usr/local/bin/backup/ /usr/local/bin/monitoring/ /usr/local/bin/utils/ && \
+RUN chmod -R +x /usr/local/bin/lib/ /usr/local/bin/entrypoint/ /usr/local/bin/backup/ /usr/local/bin/monitoring/ /usr/local/bin/utils/ && \
     ln -s /usr/local/bin/entrypoint/main.sh /entrypoint.sh && \
     chmod 640 /etc/fail2ban/jail.* && \
     echo "* hard core 0" > /etc/security/limits.conf && \
