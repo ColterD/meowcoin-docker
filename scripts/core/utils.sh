@@ -1,3 +1,4 @@
+# scripts/core/utils.sh
 #!/bin/bash
 # Common utility library for Meowcoin Docker
 # Centralizes shared functionality to reduce duplication
@@ -38,8 +39,8 @@ function handle_error() {
   log "$ERROR_MESSAGE" "$ERROR_LEVEL"
   
   # Send alert if monitoring is configured and alert script exists
-  if [ -x /usr/local/bin/monitoring/send-alert.sh ]; then
-    /usr/local/bin/monitoring/send-alert.sh "$ERROR_MESSAGE" "$ALERT_TYPE" "$ALERT_SEVERITY"
+  if [ -x /usr/local/bin/tools/send-alert.sh ]; then
+    /usr/local/bin/tools/send-alert.sh "$ERROR_MESSAGE" "$ALERT_TYPE" "$ALERT_SEVERITY"
   fi
   
   # Exit if this is a critical error
@@ -220,6 +221,76 @@ function is_port_available() {
   fi
 }
 
+# Detect disk type (SSD vs HDD)
+function detect_disk_type() {
+  local DATA_DIR="/home/meowcoin/.meowcoin"
+  local DISK_TYPE="unknown"
+  
+  if [ -x "$(command -v lsblk)" ]; then
+    # Get device name for data directory
+    local DEV_NAME=$(df -P "$DATA_DIR" | tail -1 | cut -d' ' -f1 | sed 's/.*\///')
+    
+    # Check if device is rotational (HDD) or not (SSD)
+    if lsblk -d -o name,rota | grep "$DEV_NAME" | grep -q "0"; then
+      DISK_TYPE="ssd"
+    else
+      DISK_TYPE="hdd"
+    fi
+  else
+    # Fallback method using basic I/O test
+    if [ -x "$(command -v dd)" ]; then
+      # Create temp file
+      local TEMP_FILE="$DATA_DIR/.disk_type_test"
+      
+      # Run random read test (better on SSDs)
+      dd if=/dev/zero of="$TEMP_FILE" bs=1M count=100 conv=fdatasync >/dev/null 2>&1
+      local START_TIME=$(date +%s.%N)
+      dd if="$TEMP_FILE" of=/dev/null bs=4k count=25000 iflag=direct >/dev/null 2>&1
+      local END_TIME=$(date +%s.%N)
+      
+      # Calculate time
+      local ELAPSED_TIME=$(echo "$END_TIME - $START_TIME" | bc)
+      
+      # Clean up
+      rm -f "$TEMP_FILE"
+      
+      # If read was fast, probably SSD
+      if (( $(echo "$ELAPSED_TIME < 1.0" | bc -l) )); then
+        DISK_TYPE="ssd"
+      else
+        DISK_TYPE="hdd"
+      fi
+    fi
+  fi
+  
+  echo "$DISK_TYPE"
+}
+
+# Measure disk speed in MB/s
+function measure_disk_speed() {
+  local DATA_DIR="/home/meowcoin/.meowcoin"
+  local DISK_SPEED=0
+  
+  if [ -x "$(command -v dd)" ]; then
+    # Create temp file
+    local TEMP_FILE="$DATA_DIR/.disk_speed_test"
+    
+    # Run write test
+    local START_TIME=$(date +%s.%N)
+    dd if=/dev/zero of="$TEMP_FILE" bs=1M count=100 conv=fdatasync >/dev/null 2>&1
+    local END_TIME=$(date +%s.%N)
+    
+    # Calculate speed
+    local ELAPSED_TIME=$(echo "$END_TIME - $START_TIME" | bc)
+    DISK_SPEED=$(echo "100 / $ELAPSED_TIME" | bc)
+    
+    # Clean up
+    rm -f "$TEMP_FILE"
+  fi
+  
+  echo "$DISK_SPEED"
+}
+
 # Function to get memory info in MB
 function get_memory_info() {
   local MEMORY_TYPE="${1:-total}"  # Options: total, free, available
@@ -268,6 +339,26 @@ function get_memory_info() {
   esac
 }
 
+# Function to execute a hook
+function execute_hook() {
+  local HOOK_NAME="$1"
+  shift
+  export HOOK_ARGS="$@"
+  
+  if [ -d "/usr/local/bin/hooks" ]; then
+    # Check if hook exists
+    if [ -x "/usr/local/bin/hooks/${HOOK_NAME}.sh" ]; then
+      log "Executing hook: $HOOK_NAME" "INFO"
+      "/usr/local/bin/hooks/${HOOK_NAME}.sh" "$@" || log "Hook execution failed: $HOOK_NAME" "WARNING"
+    fi
+  fi
+  
+  # Execute plugin hooks if plugin system enabled
+  if [ "${ENABLE_PLUGINS:-false}" = "true" ] && [ -x /usr/local/bin/plugins/hooks.sh ]; then
+    /usr/local/bin/plugins/hooks.sh "$HOOK_NAME" "$@"
+  fi
+}
+
 # Function to record metrics
 function record_metric() {
   local METRIC_NAME="$1"
@@ -303,7 +394,7 @@ function record_metric() {
   return 0
 }
 
-# Export functions for use in other scripts
+# Export functions
 export -f log
 export -f handle_error
 export -f retry_operation
@@ -314,3 +405,6 @@ export -f generate_secure_random
 export -f is_port_available
 export -f get_memory_info
 export -f record_metric
+export -f detect_disk_type
+export -f measure_disk_speed
+export -f execute_hook
