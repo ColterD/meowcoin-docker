@@ -16,7 +16,7 @@ log() {
   echo "[$TRACE_ID][$(date -Iseconds)] $1" | tee -a "$LOG_FILE"
 }
 
-# Error handling function
+# Error handling function with detailed error codes
 handle_error() {
   local EXIT_CODE=$1
   local ERROR_MESSAGE=$2
@@ -55,20 +55,41 @@ retry_operation() {
   local ATTEMPT=1
   local DELAY="${3:-5}"
   local TIMEOUT="${4:-60}"
+  local OPERATION_NAME="${5:-command}"
   
   while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-    log "Executing operation (attempt $ATTEMPT/$MAX_ATTEMPTS): $CMD"
+    log "Executing $OPERATION_NAME (attempt $ATTEMPT/$MAX_ATTEMPTS)"
     
     # Use timeout to prevent hanging commands
-    timeout $TIMEOUT bash -c "$CMD" && return 0
+    if timeout $TIMEOUT bash -c "$CMD"; then
+      log "$OPERATION_NAME succeeded on attempt $ATTEMPT"
+      return 0
+    fi
     
     local EXIT_CODE=$?
+    
+    # Handle different error codes
+    case $EXIT_CODE in
+      124)
+        log "$OPERATION_NAME timed out after $TIMEOUT seconds"
+        ;;
+      127)
+        log "$OPERATION_NAME failed - command not found"
+        if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+          return 127
+        fi
+        ;;
+      *)
+        log "$OPERATION_NAME failed with exit code $EXIT_CODE"
+        ;;
+    esac
+    
     if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
-      log "Operation failed after $MAX_ATTEMPTS attempts"
+      log "$OPERATION_NAME failed after $MAX_ATTEMPTS attempts"
       return $EXIT_CODE
     fi
     
-    log "Attempt $ATTEMPT failed (exit code: $EXIT_CODE), retrying in $DELAY seconds..."
+    log "Retrying in $DELAY seconds..."
     sleep $DELAY
     ATTEMPT=$((ATTEMPT + 1))
     DELAY=$((DELAY * 2))  # Exponential backoff
@@ -77,7 +98,7 @@ retry_operation() {
   return 1
 }
 
-# Ensure backup directory exists
+# Create backup directory and set permissions
 mkdir -p "$BACKUP_DIR" || handle_error $? "Failed to create backup directory"
 chmod 750 "$BACKUP_DIR"
 chown meowcoin:meowcoin "$BACKUP_DIR"
@@ -87,7 +108,7 @@ log "Starting backup process"
 # Execute pre-backup hook
 execute_hook "backup_pre"
 
-# Check if we have enough disk space
+# Check available disk space
 REQUIRED_SPACE=$(($(du -sm $DATA_DIR/wallet.dat 2>/dev/null | cut -f1) * 2))
 AVAILABLE_SPACE=$(df -m $BACKUP_DIR | tail -1 | awk '{print $4}')
 
@@ -109,8 +130,8 @@ fi
 
 log "Creating backup archive with compression level $COMPRESSION_LEVEL"
 
-# Create backup excluding large/unnecessary files
-tar -C / -czf "$BACKUP_FILE" --exclude="$DATA_DIR/blocks" \
+# Create backup with detailed error handling
+if ! tar -C / -czf "$BACKUP_FILE" --exclude="$DATA_DIR/blocks" \
   --exclude="$DATA_DIR/chainstate" \
   --exclude="$DATA_DIR/database" \
   --exclude="$DATA_DIR/backups" \
@@ -118,10 +139,26 @@ tar -C / -czf "$BACKUP_FILE" --exclude="$DATA_DIR/blocks" \
   --exclude="$DATA_DIR/logs" \
   --exclude="$DATA_DIR/fee_estimates.dat" \
   --options="compression-level=$COMPRESSION_LEVEL" \
-  "${DATA_DIR#/}" || handle_error $? "Backup creation failed"
+  "${DATA_DIR#/}"; then
+  
+  ERROR_CODE=$?
+  case $ERROR_CODE in
+    1) handle_error 120 "Non-fatal error during backup creation - some files may have changed during backup" ;;
+    2) handle_error 121 "Fatal error during backup creation - backup is likely incomplete or corrupted" ;;
+    *) handle_error 122 "Backup creation failed with code $ERROR_CODE" ;;
+  esac
+  
+  # For any error, attempt to clean up
+  log "Removing failed backup file"
+  rm -f "$BACKUP_FILE" 2>/dev/null || true
+  exit 1
+fi
 
-# Create checksum file
-sha256sum "$BACKUP_FILE" > "$BACKUP_FILE.sha256" || handle_error $? "Failed to create checksum file"
+# Create and verify checksum file
+if ! sha256sum "$BACKUP_FILE" > "$BACKUP_FILE.sha256"; then
+  handle_error 123 "Failed to create checksum file"
+  exit 1
+fi
 
 # Validate backup file integrity
 if ! tar -tzf "$BACKUP_FILE" >/dev/null 2>&1; then
@@ -145,37 +182,45 @@ if [ ! -z "$BACKUP_ENCRYPTION_KEY" ]; then
   chmod 600 "$KEY_FILE"
   echo -n "$BACKUP_ENCRYPTION_KEY" > "$KEY_FILE"
   
-  # Encrypt the backup
-  if openssl enc -aes-256-cbc -pbkdf2 -iter 10000 -salt -in "$BACKUP_FILE" \
+  # Encrypt the backup with proper error handling
+  if ! openssl enc -aes-256-cbc -pbkdf2 -iter 10000 -salt -in "$BACKUP_FILE" \
        -out "$BACKUP_FILE.enc" -pass file:"$KEY_FILE"; then
-    
-    # Replace original with encrypted version
-    mv "$BACKUP_FILE.enc" "$BACKUP_FILE"
-    
-    # Update checksum
-    sha256sum "$BACKUP_FILE" > "$BACKUP_FILE.sha256"
-    
-    log "Backup encrypted successfully"
-  else
-    handle_error 104 "Backup encryption failed"
+    ERROR_CODE=$?
+    handle_error 104 "Backup encryption failed with code $ERROR_CODE"
     # Clean up failed encryption attempt
     rm -f "$BACKUP_FILE.enc"
+    shred -u "$KEY_FILE" || rm -f "$KEY_FILE"
+    exit 1
   fi
+    
+  # Replace original with encrypted version
+  mv "$BACKUP_FILE.enc" "$BACKUP_FILE"
+    
+  # Update checksum
+  sha256sum "$BACKUP_FILE" > "$BACKUP_FILE.sha256"
+    
+  log "Backup encrypted successfully"
   
   # Securely delete the key file
   shred -u "$KEY_FILE" || rm -f "$KEY_FILE"
 fi
 
-# Get file size
+# Get file size and record success
 BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
 log "Backup completed: $BACKUP_FILE ($BACKUP_SIZE)"
 
-# Clean up old backups
+# Clean up old backups with error handling
 log "Cleaning up old backups (keeping $MAX_BACKUPS most recent)"
-ls -t "$BACKUP_DIR"/meowcoin_backup_*.tar.gz | tail -n +$((MAX_BACKUPS+1)) | xargs rm -f 2>/dev/null || true
-ls -t "$BACKUP_DIR"/meowcoin_backup_*.tar.gz.sha256 | tail -n +$((MAX_BACKUPS+1)) | xargs rm -f 2>/dev/null || true
+if ! ls -t "$BACKUP_DIR"/meowcoin_backup_*.tar.gz 2>/dev/null | tail -n +$((MAX_BACKUPS+1)) | xargs rm -f 2>/dev/null; then
+  log "Note: No old backups to clean up or error during cleanup"
+fi
 
-# If backup is configured to be sent to remote storage
+# Handle old checksum files separately (in case they don't match backup files)
+if ! ls -t "$BACKUP_DIR"/meowcoin_backup_*.tar.gz.sha256 2>/dev/null | tail -n +$((MAX_BACKUPS+1)) | xargs rm -f 2>/dev/null; then
+  log "Note: No old checksum files to clean up or error during cleanup"
+fi
+
+# Handle remote backup transfers
 if [ "${BACKUP_REMOTE_ENABLED:-false}" = "true" ]; then
   log "Remote backup enabled, attempting to transfer backup"
   
@@ -185,17 +230,21 @@ if [ "${BACKUP_REMOTE_ENABLED:-false}" = "true" ]; then
         handle_error 105 "S3 bucket not specified for remote backup"
       else
         log "Uploading to S3 bucket ${BACKUP_S3_BUCKET}"
-        # Using AWS CLI if installed
+        # Using AWS CLI with proper error handling
         if command -v aws >/dev/null 2>&1; then
           # Set upload timeout and retry policy
           export AWS_MAX_ATTEMPTS=5
           export AWS_RETRY_MODE=adaptive
           
           # Upload main file with retry
-          retry_operation "aws s3 cp \"$BACKUP_FILE\" \"s3://${BACKUP_S3_BUCKET}/meowcoin_backup_$TIMESTAMP.tar.gz\" --metadata \"trace_id=$TRACE_ID,timestamp=$(date -Iseconds)\"" 3 60 1800
+          if ! retry_operation "aws s3 cp \"$BACKUP_FILE\" \"s3://${BACKUP_S3_BUCKET}/meowcoin_backup_$TIMESTAMP.tar.gz\" --metadata \"trace_id=$TRACE_ID,timestamp=$(date -Iseconds)\"" 3 60 1800 "S3 upload"; then
+            handle_error 130 "S3 upload failed after multiple attempts"
+          fi
           
           # Upload checksum file
-          retry_operation "aws s3 cp \"$BACKUP_FILE.sha256\" \"s3://${BACKUP_S3_BUCKET}/meowcoin_backup_$TIMESTAMP.tar.gz.sha256\" --metadata \"trace_id=$TRACE_ID,timestamp=$(date -Iseconds)\"" 3 60 300
+          if ! retry_operation "aws s3 cp \"$BACKUP_FILE.sha256\" \"s3://${BACKUP_S3_BUCKET}/meowcoin_backup_$TIMESTAMP.tar.gz.sha256\" --metadata \"trace_id=$TRACE_ID,timestamp=$(date -Iseconds)\"" 3 60 300 "S3 checksum upload"; then
+            handle_error 131 "S3 checksum upload failed"
+          fi
           
           # Verify upload
           if aws s3 ls "s3://${BACKUP_S3_BUCKET}/meowcoin_backup_$TIMESTAMP.tar.gz" >/dev/null 2>&1; then
@@ -213,21 +262,25 @@ if [ "${BACKUP_REMOTE_ENABLED:-false}" = "true" ]; then
         handle_error 108 "SFTP host or user not specified for remote backup"
       else
         log "Uploading to SFTP server ${BACKUP_SFTP_HOST}"
-        # Using scp/sftp if installed
+        # Using scp/sftp with proper error handling
         if command -v sftp >/dev/null 2>&1; then
           # Setup SSH options for improved reliability
           SSH_OPTS="-o ConnectTimeout=30 -o ConnectionAttempts=3 -o ServerAliveInterval=30"
           
           # Ensure remote directory exists
-          if ! retry_operation "ssh $SSH_OPTS -i \"${BACKUP_SFTP_KEY}\" \"${BACKUP_SFTP_USER}@${BACKUP_SFTP_HOST}\" \"mkdir -p ${BACKUP_SFTP_PATH}\"" 3 10 120; then
+          if ! retry_operation "ssh $SSH_OPTS -i \"${BACKUP_SFTP_KEY}\" \"${BACKUP_SFTP_USER}@${BACKUP_SFTP_HOST}\" \"mkdir -p ${BACKUP_SFTP_PATH}\"" 3 10 120 "SFTP directory creation"; then
             handle_error 109 "Failed to create remote directory on SFTP server"
           fi
           
           # Upload main file with retry
-          retry_operation "scp $SSH_OPTS -i \"${BACKUP_SFTP_KEY}\" \"$BACKUP_FILE\" \"${BACKUP_SFTP_USER}@${BACKUP_SFTP_HOST}:${BACKUP_SFTP_PATH}/\"" 3 30 1800
+          if ! retry_operation "scp $SSH_OPTS -i \"${BACKUP_SFTP_KEY}\" \"$BACKUP_FILE\" \"${BACKUP_SFTP_USER}@${BACKUP_SFTP_HOST}:${BACKUP_SFTP_PATH}/\"" 3 30 1800 "SFTP upload"; then
+            handle_error 140 "SFTP upload failed after multiple attempts"
+          fi
           
           # Upload checksum file
-          retry_operation "scp $SSH_OPTS -i \"${BACKUP_SFTP_KEY}\" \"$BACKUP_FILE.sha256\" \"${BACKUP_SFTP_USER}@${BACKUP_SFTP_HOST}:${BACKUP_SFTP_PATH}/\"" 3 10 300
+          if ! retry_operation "scp $SSH_OPTS -i \"${BACKUP_SFTP_KEY}\" \"$BACKUP_FILE.sha256\" \"${BACKUP_SFTP_USER}@${BACKUP_SFTP_HOST}:${BACKUP_SFTP_PATH}/\"" 3 10 300 "SFTP checksum upload"; then
+            handle_error 141 "SFTP checksum upload failed"
+          fi
           
           log "Upload to SFTP completed"
         else
@@ -244,7 +297,11 @@ fi
 # Unlock wallet if it was locked by this script
 if [ "$WALLET_LOCKED" = true ]; then
   log "Unlocking wallet"
-  meowcoin-cli -conf="$DATA_DIR/meowcoin.conf" walletpassphrase "$WALLET_PASSPHRASE" 0 true >/dev/null 2>&1 || handle_error $? "Failed to unlock wallet"
+  if ! meowcoin-cli -conf="$DATA_DIR/meowcoin.conf" walletpassphrase "$WALLET_PASSPHRASE" 0 true >/dev/null 2>&1; then
+    handle_error 150 "Failed to unlock wallet"
+  else
+    log "Wallet unlocked successfully"
+  fi
 fi
 
 # Execute post-backup hook

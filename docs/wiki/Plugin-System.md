@@ -26,19 +26,21 @@ Plugins are shell scripts that are loaded at container startup. Create your plug
 #!/bin/bash
 # my-custom-plugin.sh
 
-# This function will be called when the container starts
+# Description: A simple plugin that monitors blockchain height
+# Author: Your Name
+# Version: 1.0.0
+# Requires: jq
+
 function on_startup() {
   plugin_log "Starting my custom plugin"
   # Add custom functionality here
 }
 
-# This function will be called when the container shuts down
 function on_shutdown() {
   plugin_log "Shutting down my custom plugin"
   # Cleanup operations
 }
 
-# Register hooks to container lifecycle events
 register_hook "startup" on_startup
 register_hook "shutdown" on_shutdown
 ```
@@ -52,97 +54,152 @@ The following hooks are available for plugins:
 - `post_sync`: Called when blockchain sync completes  
 - `backup_pre`: Called before backup creation  
 - `backup_post`: Called after backup completion  
+- `backup_error`: Called when a backup operation fails  
+- `health_check`: Called during health checks  
+- `periodic`: Called on a regular schedule (if enabled)
 
 ## Plugin API
 
 Plugins have access to several helper functions:
 
-- `plugin_log "message"`: Write messages to the container log  
-- `plugin_dir`: Get the plugin directory path  
-- `meowcoin_data_dir`: Get the Meowcoin data directory  
-- `meowcoin_config`: Get the path to the Meowcoin configuration file  
-- `meowcoin_rpc "command" "param1" "param2"`: Execute RPC commands  
-- `plugin_exec "command"`: Execute a command with safety timeout  
+- `plugin_log "message" ["level"]`
+- `plugin_dir`
+- `plugin_data_dir`
+- `plugin_config_dir`
+- `meowcoin_data_dir`
+- `meowcoin_config`
+- `meowcoin_rpc "command" "param1" "param2"`
+- `plugin_exec "command"`
+- `plugin_config_get "key" ["default"]`
+- `plugin_config_set "key" "value"`
+- `plugin_state_save "key" "value"`
+- `plugin_state_get "key" ["default"]`
+- `plugin_get_trace_id`
+- `plugin_get_hook_args`
+- `plugin_check_resources "resource"`
+- `plugin_send_metric "name" "value" ["type"]`
 
 ## Security Considerations
 
 Plugins are validated for security concerns. Plugins that attempt to:
 
-- Execute networking commands (curl, wget, nc)  
-- Use potentially unsafe evaluation (eval, exec)  
-- Escalate privileges (sudo, su)  
-- Access restricted system files  
+- Execute networking commands (`curl`, `wget`, `nc`)
+- Use potentially unsafe evaluation (`eval`, `exec`)
+- Escalate privileges (`sudo`, `su`)
+- Access restricted system files
 
 will be disabled automatically for security reasons.
 
-## Example Plugins
-
-### Performance Monitoring Plugin
+## Advanced Plugin Example: Chain Analysis
 
 ```bash
 #!/bin/bash
-# performance-monitor.sh
+# plugins/chain-analyzer.sh
 
-function collect_metrics() {
-  plugin_log "Collecting performance metrics"
-  
-  # Get blockchain info
-  BLOCKINFO=$(meowcoin_rpc getblockchaininfo)
-  BLOCKS=$(echo $BLOCKINFO | jq -r '.blocks')
-  
-  # Log results
-  plugin_log "Current block height: $BLOCKS"
-  
-  # Record to metrics file
-  echo "$(date -Iseconds) blocks=$BLOCKS" >> $(meowcoin_data_dir)/metrics.log
+# Description: Analyzes blockchain metrics and reports anomalies
+# Author: Your Name
+# Version: 1.0.0
+# Requires: jq
+
+function initialize() {
+  plugin_log "Initializing chain analyzer plugin"
+  plugin_state_save "last_analysis" "0"
 }
 
-# Register to run after startup
-register_hook "startup" collect_metrics
+function analyze_chain() {
+  plugin_log "Running chain analysis"
+  BLOCKCHAIN_INFO=$(meowcoin_rpc getblockchaininfo)
+  if [ $? -ne 0 ]; then
+    plugin_log "Failed to get blockchain info" "ERROR"
+    return 1
+  fi
+  BLOCKS=$(echo $BLOCKCHAIN_INFO | jq -r '.blocks')
+  SIZE=$(echo $BLOCKCHAIN_INFO | jq -r '.size_on_disk')
+  AVG_BLOCK_SIZE=$(echo "scale=2; $SIZE / $BLOCKS" | bc)
+  plugin_log "Average block size: $AVG_BLOCK_SIZE bytes"
+  plugin_send_metric "avg_block_size" "$AVG_BLOCK_SIZE"
+  plugin_state_save "last_analysis" "$(date +%s)"
+  plugin_state_save "last_block_count" "$BLOCKS"
+  return 0
+}
 
-# Run periodically via cron
-if [ ! -f /etc/cron.d/metrics-collector ]; then
-  echo "*/15 * * * * meowcoin /etc/meowcoin/plugins/performance-monitor.sh" > /etc/cron.d/metrics-collector
-  chmod 644 /etc/cron.d/metrics-collector
-fi
+function detect_block_changes() {
+  CURRENT_BLOCKS=$(meowcoin_rpc getblockcount)
+  if [ $? -ne 0 ]; then
+    plugin_log "Failed to get block count" "ERROR"
+    return 1
+  fi
+  LAST_BLOCKS=$(plugin_state_get "last_block_count" "0")
+  NEW_BLOCKS=$((CURRENT_BLOCKS - LAST_BLOCKS))
+  if [ $NEW_BLOCKS -gt 0 ]; then
+    plugin_log "Detected $NEW_BLOCKS new blocks"
+    for ((i=0; i<$NEW_BLOCKS && i<10; i++)); do
+      BLOCK_HEIGHT=$((CURRENT_BLOCKS - i))
+      BLOCK_HASH=$(meowcoin_rpc getblockhash $BLOCK_HEIGHT)
+      BLOCK_INFO=$(meowcoin_rpc getblock $BLOCK_HASH)
+      TX_COUNT=$(echo $BLOCK_INFO | jq -r '.nTx')
+      BLOCK_SIZE=$(echo $BLOCK_INFO | jq -r '.size')
+      plugin_log "Block $BLOCK_HEIGHT: $TX_COUNT transactions, $BLOCK_SIZE bytes"
+      plugin_send_metric "last_block_txcount" "$TX_COUNT"
+      plugin_send_metric "last_block_size" "$BLOCK_SIZE"
+    done
+    plugin_state_save "last_block_count" "$CURRENT_BLOCKS"
+  fi
+  return 0
+}
+
+function on_health_check() {
+  HEALTH_STATUS=$1
+  if [ "$HEALTH_STATUS" = "healthy" ]; then
+    plugin_log "Node is healthy, running analysis"
+    analyze_chain
+  else
+    plugin_log "Node reports issues, skipping analysis"
+  fi
+}
+
+register_hook "startup" initialize
+register_hook "periodic" detect_block_changes
+register_hook "health_check" on_health_check
 ```
 
-### Custom Notification Plugin
+## Plugin Resource Isolation
+
+Plugins run with resource limits:
+
+- Memory: 50MB per plugin  
+- CPU: 50% of one core  
+- Timeout: 30 seconds per hook  
+- I/O: 250 operations per second
+
+## Plugin Management
 
 ```bash
-#!/bin/bash
-# notifications.sh
+# List all plugins
+docker exec meowcoin-node /usr/local/bin/entrypoint/plugins.sh list
 
-function send_notification() {
-  EVENT=$1
-  MESSAGE=$2
-  
-  plugin_log "Notification: $EVENT - $MESSAGE"
-  
-  # Add your notification logic here
-  # E.g., webhook, local file, etc.
-  echo "$(date -Iseconds) [$EVENT] $MESSAGE" >> $(meowcoin_data_dir)/notifications.log
-}
+# Enable a plugin
+docker exec meowcoin-node /usr/local/bin/entrypoint/plugins.sh enable my-plugin
 
-function on_startup() {
-  send_notification "startup" "Meowcoin node started"
-}
+# Disable a plugin
+docker exec meowcoin-node /usr/local/bin/entrypoint/plugins.sh disable my-plugin
 
-function on_shutdown() {
-  send_notification "shutdown" "Meowcoin node stopped"
-}
+# Refresh a plugin
+docker exec meowcoin-node /usr/local/bin/entrypoint/plugins.sh refresh my-plugin
 
-function pre_backup() {
-  send_notification "backup" "Starting blockchain backup"
-}
+# Generate docs
+docker exec meowcoin-node /usr/local/bin/entrypoint/plugins.sh docs
 
-function post_backup() {
-  send_notification "backup" "Completed blockchain backup"
-}
-
-# Register all hooks
-register_hook "startup" on_startup
-register_hook "shutdown" on_shutdown
-register_hook "backup_pre" pre_backup
-register_hook "backup_post" post_backup
+# View metrics
+docker exec meowcoin-node /usr/local/bin/entrypoint/plugins.sh metrics
 ```
+
+## Debugging Plugins
+
+Plugin logs:
+
+- Main log: `/var/log/meowcoin/plugins.log`
+- Hook logs: `/var/log/meowcoin/hooks/plugin_name_function_timestamp.log`
+- Plugin data: `/etc/meowcoin/plugins/data/plugin_name/`
+
+Use `plugin_log` for debugging within your plugin.

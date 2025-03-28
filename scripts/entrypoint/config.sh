@@ -34,27 +34,85 @@ function log() {
   echo "[$TRACE_ID][$(date -Iseconds)] $1" | tee -a "$LOG_FILE"
 }
 
+# Validate environment variables schema
+function validate_environment_schema() {
+  local ERRORS=0
+  
+  # Validate required variables
+  for VAR in RPC_USER RPC_BIND; do
+    if [ -z "${!VAR}" ]; then
+      log "Required variable $VAR is not set"
+      ERRORS=$((ERRORS+1))
+    fi
+  fi
+  
+  # Validate integer variables
+  for VAR in MAX_CONNECTIONS DBCACHE MAXMEMPOOL RPC_THREADS RPC_TIMEOUT RPC_WORKQUEUE; do
+    if [ ! -z "${!VAR}" ] && [[ ! "${!VAR}" =~ ^[0-9]+$ ]]; then
+      log "Variable $VAR must be an integer: ${!VAR}"
+      ERRORS=$((ERRORS+1))
+    fi
+  done
+  
+  # Validate boolean variables
+  for VAR in ENABLE_SSL ENABLE_FAIL2BAN ENABLE_JWT_AUTH ENABLE_READONLY_FS ENABLE_METRICS ENABLE_BACKUPS BACKUP_REMOTE_ENABLED; do
+    if [ ! -z "${!VAR}" ] && [[ ! "${!VAR}" =~ ^(true|false)$ ]]; then
+      log "Variable $VAR must be 'true' or 'false': ${!VAR}"
+      ERRORS=$((ERRORS+1))
+    fi
+  done
+  
+  # Validate IP format for RPC_BIND
+  if [ ! -z "$RPC_BIND" ] && [[ ! "$RPC_BIND" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+    log "RPC_BIND must be in valid IP format: $RPC_BIND"
+    ERRORS=$((ERRORS+1))
+  fi
+  
+  # Check for insecure configurations
+  if [ "$RPC_BIND" = "0.0.0.0" ] && [ "$RPC_ALLOWIP" = "0.0.0.0/0" ] && [ "${ENABLE_SSL:-false}" != "true" ]; then
+    log "SECURITY WARNING: Exposing RPC to all addresses without SSL encryption"
+  fi
+  
+  if [ $ERRORS -gt 0 ]; then
+    log "Found $ERRORS environment validation errors"
+    return 1
+  fi
+  
+  return 0
+}
+
 # Function to retry operations with exponential backoff
 function retry_operation() {
   local CMD="$1"
   local MAX_ATTEMPTS="${2:-3}"
   local ATTEMPT=1
   local DELAY="${3:-5}"
+  local OPERATION_NAME="${4:-operation}"
   
   while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-    log "Executing operation (attempt $ATTEMPT/$MAX_ATTEMPTS): $CMD"
+    log "Executing $OPERATION_NAME (attempt $ATTEMPT/$MAX_ATTEMPTS)"
     
     if bash -c "$CMD"; then
+      log "$OPERATION_NAME succeeded on attempt $ATTEMPT"
       return 0
     fi
     
     local EXIT_CODE=$?
+    
+    # Handle different error types
+    case $EXIT_CODE in
+      1) log "$OPERATION_NAME failed with general error" ;;
+      126) log "$OPERATION_NAME failed - permission problem or command is not executable" ;;
+      127) log "$OPERATION_NAME failed - command not found" ;;
+      *) log "$OPERATION_NAME failed with exit code $EXIT_CODE" ;;
+    esac
+    
     if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
-      log "Operation failed after $MAX_ATTEMPTS attempts"
+      log "$OPERATION_NAME failed after $MAX_ATTEMPTS attempts"
       return $EXIT_CODE
     fi
     
-    log "Attempt $ATTEMPT failed (exit code: $EXIT_CODE), retrying in $DELAY seconds..."
+    log "Retrying in $DELAY seconds..."
     sleep $DELAY
     ATTEMPT=$((ATTEMPT + 1))
     DELAY=$((DELAY * 2))  # Exponential backoff
@@ -75,7 +133,7 @@ function validate_env_variable() {
   
   # Validate if regex provided
   if [ ! -z "$VALIDATION_REGEX" ] && [[ ! "$CURRENT_VALUE" =~ $VALIDATION_REGEX ]]; then
-    log "WARNING: $VAR_NAME=$CURRENT_VALUE is invalid: $ERROR_MESSAGE"
+    log "$VAR_NAME=$CURRENT_VALUE is invalid: $ERROR_MESSAGE"
     log "Using default value: $DEFAULT_VALUE"
     CURRENT_VALUE="$DEFAULT_VALUE"
   fi
@@ -137,7 +195,7 @@ function calculate_resources() {
   fi
   log "Detected disk type: $DISK_TYPE"
   
-  # More nuanced calculation based on available memory and system type
+  # Calculate resources based on memory and system type
   if [ $MEMORY_LIMIT_MB -lt 1024 ]; then
     # Low memory environment (<1GB)
     DBCACHE_MB=$((MEMORY_LIMIT_MB / 4))
@@ -239,6 +297,12 @@ function apply_template() {
     return 1
   fi
   
+  # Validate configuration syntax
+  if ! grep -q "^server=1" "$OUTPUT_FILE"; then
+    handle_error 105 "Generated configuration is missing required parameters" "apply_template"
+    return 1
+  fi
+  
   # Apply correct permissions
   chmod 640 "$OUTPUT_FILE"
   chown meowcoin:meowcoin "$OUTPUT_FILE"
@@ -259,14 +323,11 @@ function setup_environment() {
   
   log "Setting up environment"
   
-  # Create log directory
-  mkdir -p /var/log/meowcoin
-  chown meowcoin:meowcoin /var/log/meowcoin
-  
   # Create required directories
   mkdir -p /home/meowcoin/.meowcoin/certs
   mkdir -p /home/meowcoin/.meowcoin/logs
   mkdir -p /home/meowcoin/.meowcoin/backups
+  mkdir -p /var/log/meowcoin
   mkdir -p /var/lib/meowcoin/metrics
   
   # Set correct permissions
@@ -274,10 +335,12 @@ function setup_environment() {
   chmod 750 /home/meowcoin/.meowcoin/certs
   chmod 750 /home/meowcoin/.meowcoin/logs
   chmod 750 /home/meowcoin/.meowcoin/backups
+  chmod 750 /var/log/meowcoin
   chmod 750 /var/lib/meowcoin/metrics
   
   chown -R meowcoin:meowcoin /home/meowcoin/.meowcoin
   chown -R meowcoin:meowcoin /var/lib/meowcoin
+  chown meowcoin:meowcoin /var/log/meowcoin
   
   # Set timezone if provided
   if [ ! -z "$TZ" ]; then
@@ -286,11 +349,14 @@ function setup_environment() {
       echo $TZ > /etc/timezone
       log "Set timezone to $TZ"
     else
-      log "WARNING: Invalid timezone '$TZ', defaulting to UTC"
+      log "Invalid timezone '$TZ', defaulting to UTC"
       ln -snf /usr/share/zoneinfo/UTC /etc/localtime
       echo "UTC" > /etc/timezone
     fi
   fi
+  
+  # Validate environment schema
+  validate_environment_schema || log "Environment validation errors detected, continuing with defaults"
   
   # Validate RPC user
   RPC_USER=$(validate_env_variable "RPC_USER" "meowcoin" "^[a-zA-Z0-9_-]+$" "Username must contain only alphanumeric characters, underscores, and hyphens")
@@ -305,12 +371,12 @@ function setup_environment() {
     else
       # Generate secure password with high entropy
       export RPC_PASSWORD=$(generate_secure_password)
-      log "NOTE: Access the password by viewing the $PASSWORD_FILE file inside the container volume"
+      log "Access the password by viewing the $PASSWORD_FILE file inside the container volume"
     fi
   else
     # Validate user-provided password
     if [ ${#RPC_PASSWORD} -lt 32 ]; then
-      log "WARNING: User-provided RPC password is too short (< 32 chars)"
+      log "User-provided RPC password is too short (< 32 chars)"
       log "Consider using the auto-generated password for better security"
     else
       log "Using user-provided RPC password"
@@ -330,7 +396,7 @@ function setup_environment() {
   calculate_resources
 }
 
-# Validate configuration for security issues with enhanced checks
+# Validate configuration for security issues
 function validate_configuration() {
   log "Validating configuration"
   
@@ -338,13 +404,13 @@ function validate_configuration() {
   local WARNINGS=0
   local CRITICAL=0
   
-  # Check for insecure RPC settings with improved pattern matching
+  # Check for insecure RPC settings
   if [[ "$RPC_BIND" == "0.0.0.0" ]]; then
-    log "WARNING: RPC is configured to bind to all interfaces (0.0.0.0)"
+    log "RPC is configured to bind to all interfaces (0.0.0.0)"
     SECURITY_ISSUES=$((SECURITY_ISSUES+1))
     WARNINGS=$((WARNINGS+1))
     
-    # More specific checks for dangerous configurations
+    # Check for dangerous configurations
     if [[ "$RPC_ALLOWIP" == "0.0.0.0/0" || "$RPC_ALLOWIP" == "*" || "$RPC_ALLOWIP" =~ .*,.* && ("$RPC_ALLOWIP" =~ 0.0.0.0/0 || "$RPC_ALLOWIP" =~ \*) ]]; then
       log "CRITICAL SECURITY RISK: RPC configured to accept connections from any IP"
       log "This exposes your node to attacks from the internet"
@@ -366,7 +432,7 @@ function validate_configuration() {
   
   # Validate RPC password strength
   if [ ${#RPC_PASSWORD} -lt 32 ]; then
-    log "WARNING: RPC password is too short, consider using the auto-generated password"
+    log "RPC password is too short, consider using the auto-generated password"
     SECURITY_ISSUES=$((SECURITY_ISSUES+1))
     WARNINGS=$((WARNINGS+1))
   fi
@@ -377,14 +443,14 @@ function validate_configuration() {
     
     # Check if SSL certificate exists
     if [ ! -f "/home/meowcoin/.meowcoin/certs/meowcoin.crt" ]; then
-      log "WARNING: SSL enabled but certificate not found"
+      log "SSL enabled but certificate not found"
       SECURITY_ISSUES=$((SECURITY_ISSUES+1))
       WARNINGS=$((WARNINGS+1))
     fi
   else
     # If RPC is exposed but SSL is not enabled
     if [[ "$RPC_BIND" != "127.0.0.1" && "$RPC_BIND" != "localhost" ]]; then
-      log "WARNING: RPC exposed without SSL encryption"
+      log "RPC exposed without SSL encryption"
       SECURITY_ISSUES=$((SECURITY_ISSUES+1))
       WARNINGS=$((WARNINGS+1))
     fi
@@ -396,13 +462,13 @@ function validate_configuration() {
     
     # Check if JWT secret exists
     if [ ! -f "/home/meowcoin/.meowcoin/.jwtsecret" ]; then
-      log "WARNING: JWT auth enabled but secret file not found"
+      log "JWT auth enabled but secret file not found"
       SECURITY_ISSUES=$((SECURITY_ISSUES+1))
       WARNINGS=$((WARNINGS+1))
     fi
   fi
   
-  # Sanitize custom options to prevent injection with improved validation
+  # Sanitize custom options to prevent injection
   if [ ! -z "$CUSTOM_OPTS" ]; then
     # Create a temporary file for sanitized options
     local TEMP_FILE=$(mktemp)
@@ -416,7 +482,7 @@ function validate_configuration() {
       if [[ "$OPTION" =~ ^[a-zA-Z0-9_]+=[a-zA-Z0-9_\.\/\-]+$ ]]; then
         echo "$OPTION" >> "$TEMP_FILE"
       else
-        log "WARNING: Skipping invalid custom option: $OPTION"
+        log "Skipping invalid custom option: $OPTION"
       fi
     done
     
@@ -431,7 +497,7 @@ function validate_configuration() {
   # Verify critical directories exist
   for DIR in "/home/meowcoin/.meowcoin" "/home/meowcoin/.meowcoin/certs" "/home/meowcoin/.meowcoin/logs"; do
     if [ ! -d "$DIR" ]; then
-      log "ERROR: Required directory missing: $DIR"
+      log "Required directory missing: $DIR"
       mkdir -p "$DIR"
       chown meowcoin:meowcoin "$DIR"
       chmod 750 "$DIR"
@@ -522,7 +588,7 @@ function load_custom_configs() {
           # Append configurations
           cat "$CONFIG_FILE" >> "$CONFIG_FILE"
         else
-          log "WARNING: Custom configuration file contains invalid format, skipping: $(basename $CONFIG_FILE)"
+          log "Custom configuration file contains invalid format, skipping: $(basename $CONFIG_FILE)"
         fi
       fi
     done

@@ -1,17 +1,17 @@
 #!/bin/bash
 set -e
 
-# Configuration with improved security settings
+# Configuration for secure implementations
 CERT_DIR="/home/meowcoin/.meowcoin/certs"
 CERT_FILE="$CERT_DIR/meowcoin.crt"
 KEY_FILE="$CERT_DIR/meowcoin.key"
 CA_FILE="$CERT_DIR/ca.crt"
 JWT_SECRET_FILE="/home/meowcoin/.meowcoin/.jwtsecret"
-SSL_CERT_DAYS=365  # More frequent rotation
+SSL_CERT_DAYS=365
 SSL_KEY_SIZE=4096
 SSL_CIPHER_LIST="ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
 SSL_PROTOCOLS="TLSv1.2 TLSv1.3"
-JWT_ALGORITHM="ES256"  # More modern algorithm than the default
+JWT_ALGORITHM="${JWT_ALGORITHM:-ES256}"
 SSL_MIN_DAYS_BEFORE_RENEWAL=30
 TRACE_ID="${TRACE_ID:-$(date +%s)-$(cat /dev/urandom | tr -dc 'a-z0-9' | head -c 8)}"
 
@@ -47,21 +47,32 @@ function retry_operation() {
   local MAX_ATTEMPTS="${2:-3}"
   local ATTEMPT=1
   local DELAY="${3:-5}"
+  local OPERATION_NAME="${4:-operation}"
   
   while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-    log "Executing operation (attempt $ATTEMPT/$MAX_ATTEMPTS): $CMD"
+    log "Executing $OPERATION_NAME (attempt $ATTEMPT/$MAX_ATTEMPTS)"
     
     if bash -c "$CMD"; then
+      log "$OPERATION_NAME succeeded on attempt $ATTEMPT"
       return 0
     fi
     
     local EXIT_CODE=$?
+    
+    # Handle specific error cases
+    case $EXIT_CODE in
+      1) log "$OPERATION_NAME failed with general error" ;;
+      126) log "$OPERATION_NAME failed - permission problem or command is not executable" ;;
+      127) log "$OPERATION_NAME failed - command not found" ;;
+      *) log "$OPERATION_NAME failed with exit code $EXIT_CODE" ;;
+    esac
+    
     if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
-      log "Operation failed after $MAX_ATTEMPTS attempts"
+      log "$OPERATION_NAME failed after $MAX_ATTEMPTS attempts"
       return $EXIT_CODE
     fi
     
-    log "Attempt $ATTEMPT failed (exit code: $EXIT_CODE), retrying in $DELAY seconds..."
+    log "Retrying in $DELAY seconds..."
     sleep $DELAY
     ATTEMPT=$((ATTEMPT + 1))
     DELAY=$((DELAY * 2))  # Exponential backoff
@@ -96,8 +107,20 @@ function setup_security_features() {
     setup_readonly_filesystem || handle_error $? "Read-only filesystem setup failed"
   fi
   
-  # Configure JWT auth if enabled
+  # Configure JWT auth with algorithm selection
   if [ "${ENABLE_JWT_AUTH:-false}" = "true" ]; then
+    # Get algorithm from environment or fallback to default
+    if [ "${JWT_ALGORITHM_STRENGTH:-standard}" = "high" ]; then
+      export JWT_ALGORITHM="ES384"  # Higher security option
+      log "Using high-security JWT algorithm: ES384"
+    elif [ "${JWT_ALGORITHM_STRENGTH:-standard}" = "extreme" ]; then
+      export JWT_ALGORITHM="ES512"  # Highest security option
+      log "Using extreme-security JWT algorithm: ES512"
+    else
+      export JWT_ALGORITHM="ES256"  # Standard security option
+      log "Using standard JWT algorithm: ES256"
+    fi
+    
     setup_jwt_authentication || handle_error $? "JWT authentication setup failed"
   fi
   
@@ -110,7 +133,7 @@ function setup_security_features() {
   log "Security features initialized successfully"
 }
 
-# Generate or validate SSL certificates with improved parameters
+# Generate or validate SSL certificates
 function setup_ssl_certificates() {
   log "Setting up SSL for RPC communication"
   
@@ -172,7 +195,7 @@ function setup_ssl_certificates() {
     RENEWAL_THRESHOLD=$((SSL_MIN_DAYS_BEFORE_RENEWAL*24*60*60))
     
     if [ $((EXPIRY_EPOCH - CURRENT_EPOCH)) -lt $RENEWAL_THRESHOLD ]; then
-      log "WARNING: SSL certificate will expire within $SSL_MIN_DAYS_BEFORE_RENEWAL days. Generating new certificate."
+      log "SSL certificate will expire within $SSL_MIN_DAYS_BEFORE_RENEWAL days. Generating new certificate."
       
       # Backup old certificate
       local BACKUP_SUFFIX=$(date +%Y%m%d%H%M%S)
@@ -209,7 +232,7 @@ function setup_ssl_certificates() {
   return 0
 }
 
-# Setup fail2ban for RPC protection with improved configuration
+# Setup fail2ban for RPC protection
 function setup_fail2ban() {
   log "Setting up fail2ban for RPC protection"
   
@@ -227,11 +250,11 @@ function setup_fail2ban() {
   
   # Check if fail2ban is installed
   if ! command -v fail2ban-server >/dev/null 2>&1; then
-    log "WARNING: fail2ban is not installed, cannot enable fail2ban protection"
+    log "fail2ban is not installed, cannot enable fail2ban protection"
     return 1
   fi
   
-  # Create additional fail2ban filters for improved security
+  # Create additional fail2ban filters for protection
   # Filter for repeated invalid requests
   if [ ! -f "/etc/fail2ban/filter.d/meowcoin-invalid.conf" ]; then
     cat > /etc/fail2ban/filter.d/meowcoin-invalid.conf <<EOF
@@ -328,7 +351,7 @@ EOF
   # Validate fail2ban configuration
   log "Validating fail2ban configuration"
   if ! fail2ban-client -t 2>&1 | tee -a $SECURITY_LOG; then
-    log "WARNING: Fail2ban configuration test failed"
+    log "Fail2ban configuration test failed"
     return 1
   fi
   
@@ -338,7 +361,7 @@ EOF
   elif systemctl status >/dev/null 2>&1; then
     systemctl restart fail2ban
   else
-    log "WARNING: Cannot restart fail2ban, not using standard service management"
+    log "Cannot restart fail2ban, not using standard service management"
     # Start manually
     killall -9 fail2ban-server >/dev/null 2>&1 || true
     fail2ban-server -b -s /var/run/fail2ban/fail2ban.sock
@@ -398,10 +421,10 @@ EOF
     
     # Mount tmpfs
     if ! mount -a -T /etc/fstab.meowcoin; then
-      log "WARNING: Failed to mount tmpfs directories"
+      log "Failed to mount tmpfs directories"
     fi
   else
-    log "WARNING: mount command not available, cannot create tmpfs mounts"
+    log "mount command not available, cannot create tmpfs mounts"
   fi
   
   log "Read-only filesystem configured (except for essential directories)"
@@ -413,30 +436,47 @@ EOF
   return 0
 }
 
-# Setup JWT authentication for API access with improved security
+# Setup JWT authentication for API access
 function setup_jwt_authentication() {
-  log "Setting up JWT authentication"
+  log "Setting up JWT authentication with algorithm: $JWT_ALGORITHM"
   
   # Generate JWT secret if it doesn't exist
   if [ ! -f "$JWT_SECRET_FILE" ]; then
     # Create JWT directory with proper permissions
     mkdir -p "$(dirname "$JWT_SECRET_FILE")"
     
-    # Generate 512-bit random key using EC P-256 curve
-    if ! openssl ecparam -name prime256v1 -genkey | openssl pkcs8 -topk8 -nocrypt -out "$JWT_SECRET_FILE"; then
-      handle_error 103 "Failed to generate JWT secret key"
-      return 1
+    # Generate key using appropriate EC curve based on algorithm
+    if [ "$JWT_ALGORITHM" = "ES384" ]; then
+      # P-384 curve for ES384
+      if ! openssl ecparam -name secp384r1 -genkey | openssl pkcs8 -topk8 -nocrypt -out "$JWT_SECRET_FILE"; then
+        handle_error 103 "Failed to generate JWT secret key"
+        return 1
+      fi
+      log "Generated JWT secret key using EC P-384 curve"
+    elif [ "$JWT_ALGORITHM" = "ES512" ]; then
+      # P-521 curve for ES512
+      if ! openssl ecparam -name secp521r1 -genkey | openssl pkcs8 -topk8 -nocrypt -out "$JWT_SECRET_FILE"; then
+        handle_error 103 "Failed to generate JWT secret key"
+        return 1
+      fi
+      log "Generated JWT secret key using EC P-521 curve"
+    else
+      # Default P-256 curve for ES256
+      if ! openssl ecparam -name prime256v1 -genkey | openssl pkcs8 -topk8 -nocrypt -out "$JWT_SECRET_FILE"; then
+        handle_error 103 "Failed to generate JWT secret key"
+        return 1
+      fi
+      log "Generated JWT secret key using EC P-256 curve"
     fi
     
     chmod 600 "$JWT_SECRET_FILE"
     chown meowcoin:meowcoin "$JWT_SECRET_FILE"
-    log "Generated JWT secret key using EC P-256 curve"
   else
     log "Using existing JWT secret key"
     
     # Validate key format and permissions
     if ! openssl ec -in "$JWT_SECRET_FILE" -noout 2>/dev/null; then
-      log "WARNING: Existing JWT key is not in EC format. Generating new key."
+      log "Existing JWT key is not in EC format. Generating new key."
       mv "$JWT_SECRET_FILE" "${JWT_SECRET_FILE}.old"
       setup_jwt_authentication
       return $?
@@ -478,7 +518,7 @@ function setup_jwt_authentication() {
   mkdir -p /usr/local/bin/utils
   cat > /usr/local/bin/utils/generate-jwt-token.sh <<'EOF'
 #!/bin/bash
-# Generate a JWT token for API access with improved security
+# Generate a JWT token for API access
 
 JWT_SECRET_FILE="/home/meowcoin/.meowcoin/.jwtsecret"
 JWT_EXPIRY=${1:-3600}  # Default token expiry: 1 hour
@@ -492,7 +532,14 @@ fi
 
 # Generate header with algorithm from key type
 if grep -q "BEGIN EC PRIVATE KEY" "$JWT_SECRET_FILE"; then
-  ALGORITHM="ES256"
+  # Determine algorithm from key size
+  KEY_SIZE=$(openssl ec -in "$JWT_SECRET_FILE" -text -noout 2>/dev/null | grep "ASN1 OID" | awk '{print $3}')
+  case "$KEY_SIZE" in
+    prime256v1) ALGORITHM="ES256" ;;
+    secp384r1) ALGORITHM="ES384" ;;
+    secp521r1) ALGORITHM="ES512" ;;
+    *) ALGORITHM="ES256" ;;  # Default
+  esac
 else
   ALGORITHM="HS256"  # Fallback to HMAC
 fi
@@ -513,9 +560,9 @@ PAYLOAD_B64=$(echo -n $PAYLOAD | openssl base64 -e -A | tr '+/' '-_' | tr -d '='
 UNSIGNED_TOKEN="$HEADER_B64.$PAYLOAD_B64"
 
 # Sign the token
-if [ "$ALGORITHM" = "ES256" ]; then
+if [ "$ALGORITHM" = "ES256" ] || [ "$ALGORITHM" = "ES384" ] || [ "$ALGORITHM" = "ES512" ]; then
   # For ECDSA, we need to use the right signature format
-  SIGNATURE=$(echo -n "$UNSIGNED_TOKEN" | openssl dgst -sha256 -sign "$JWT_SECRET_FILE" | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+  SIGNATURE=$(echo -n "$UNSIGNED_TOKEN" | openssl dgst -sha${ALGORITHM#ES} -sign "$JWT_SECRET_FILE" | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
 else
   # For HMAC, we use the key directly
   SIGNATURE=$(echo -n "$UNSIGNED_TOKEN" | openssl dgst -sha256 -hmac "$(cat $JWT_SECRET_FILE)" -binary | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
@@ -539,7 +586,7 @@ echo "curl -s -H \"Authorization: Bearer $JWT_TOKEN\" -H \"Content-Type: applica
 EOF
   
   chmod +x /usr/local/bin/utils/generate-jwt-token.sh
-  log "JWT token generation utility created with improved security"
+  log "JWT token generation utility created"
   
   # Create token verification script
   cat > /usr/local/bin/utils/verify-jwt-token.sh <<'EOF'
@@ -575,20 +622,22 @@ EXP=$(echo "$PAYLOAD" | sed -n 's/.*"exp":\([0-9]*\).*/\1/p')
 NOW=$(date +%s)
 
 if [ -z "$EXP" ]; then
-  echo "ERROR: No expiry found in token"
+  echo "No expiry found in token"
   exit 1
 fi
 
 if [ $NOW -gt $EXP ]; then
-  echo "ERROR: Token has expired at $(date -d @$EXP)"
+  echo "Token has expired at $(date -d @$EXP)"
   exit 1
 else
   echo "Token is valid until $(date -d @$EXP)"
 fi
 
-# Verify signature (this is a simplified check - proper verification needs a JWT library)
-# For a real verification, consider using a dedicated JWT tool
-echo "NOTE: Full cryptographic signature verification requires additional libraries."
+# Extract algorithm
+ALG=$(echo "$HEADER" | sed -n 's/.*"alg": *"\([^"]*\)".*/\1/p')
+echo "Token algorithm: $ALG"
+
+echo "For full cryptographic verification, you would need a JWT library"
 EOF
 
   chmod +x /usr/local/bin/utils/verify-jwt-token.sh
@@ -601,6 +650,7 @@ EOF
 
 JWT_SECRET_FILE="/home/meowcoin/.meowcoin/.jwtsecret"
 BACKUP_DIR="/home/meowcoin/.meowcoin/key-backups"
+JWT_ALGORITHM=${1:-ES256}  # Default algorithm or pass as parameter
 
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
@@ -615,8 +665,22 @@ if [ -f "$JWT_SECRET_FILE" ]; then
   echo "JWT key backed up to $BACKUP_FILE"
 fi
 
-# Generate new key
-openssl ecparam -name prime256v1 -genkey | openssl pkcs8 -topk8 -nocrypt -out "$JWT_SECRET_FILE"
+# Generate new key based on algorithm
+case "$JWT_ALGORITHM" in
+  ES384) 
+    echo "Generating ES384 key (P-384 curve)"
+    openssl ecparam -name secp384r1 -genkey | openssl pkcs8 -topk8 -nocrypt -out "$JWT_SECRET_FILE"
+    ;;
+  ES512)
+    echo "Generating ES512 key (P-521 curve)"
+    openssl ecparam -name secp521r1 -genkey | openssl pkcs8 -topk8 -nocrypt -out "$JWT_SECRET_FILE"
+    ;;
+  *)
+    echo "Generating ES256 key (P-256 curve)"
+    openssl ecparam -name prime256v1 -genkey | openssl pkcs8 -topk8 -nocrypt -out "$JWT_SECRET_FILE"
+    ;;
+esac
+
 chmod 600 "$JWT_SECRET_FILE"
 chown meowcoin:meowcoin "$JWT_SECRET_FILE"
 
@@ -640,13 +704,13 @@ EOF
     if [ -d "/etc/cron.d" ]; then
       cat > /etc/cron.d/jwt-key-rotation <<EOF
 # JWT key rotation schedule
-$ROTATION_SCHEDULE root /usr/local/bin/utils/rotate-jwt-keys.sh > /var/log/meowcoin/jwt-rotation.log 2>&1
+$ROTATION_SCHEDULE root /usr/local/bin/utils/rotate-jwt-keys.sh $JWT_ALGORITHM > /var/log/meowcoin/jwt-rotation.log 2>&1
 EOF
       
       chmod 644 /etc/cron.d/jwt-key-rotation
       log "Scheduled JWT key rotation: $ROTATION_SCHEDULE"
     else
-      log "WARNING: Cannot schedule JWT key rotation (cron.d directory not found)"
+      log "Cannot schedule JWT key rotation (cron.d directory not found)"
     fi
   fi
   
@@ -677,7 +741,7 @@ meowcoin hard nproc 4096
 EOF
     log "Set resource limits for meowcoin user"
   else
-    log "WARNING: Cannot set resource limits (limits.d directory not found)"
+    log "Cannot set resource limits (limits.d directory not found)"
   fi
 
   # Disable core dumps for security
@@ -698,7 +762,7 @@ EOF
     log "Restricted dmesg access"
   fi
   
-  # Check and apply sysctl hardening if available
+  # Apply sysctl hardening if available
   if command -v sysctl >/dev/null 2>&1 && [ -d "/proc/sys" ]; then
     # Network hardening
     sysctl -w net.ipv4.tcp_syncookies=1 >/dev/null 2>&1 || true
@@ -754,7 +818,7 @@ function schedule_security_checks() {
   if [ -f "/usr/local/bin/security/check-certs.sh" ]; then
     chmod +x /usr/local/bin/security/check-certs.sh
   else
-    log "WARNING: Certificate check script not found"
+    log "Certificate check script not found"
   fi
   
   # Create integrity check script
@@ -776,13 +840,13 @@ log "Running integrity check"
 
 # Check if integrity file exists
 if [ ! -f "$INTEGRITY_FILE" ]; then
-  log "ERROR: Integrity file not found"
+  log "Integrity file not found"
   exit 1
 fi
 
 # Verify binary integrity
 if ! sha256sum -c "$INTEGRITY_FILE" >/dev/null 2>&1; then
-  log "CRITICAL: Binary integrity check failed"
+  log "Binary integrity check failed"
   log "Expected hashes:"
   cat "$INTEGRITY_FILE" | tee -a "$LOG_FILE"
   log "Current hashes:"
@@ -801,7 +865,7 @@ fi
 # Check for unusual setuid/setgid binaries in key directories
 if find /usr/bin /usr/local/bin -perm -4000 -o -perm -2000 | grep -v "^/usr/bin/sudo$" > /tmp/setuid_check.txt; then
   if [ -s /tmp/setuid_check.txt ]; then
-    log "WARNING: Found unusual setuid/setgid binaries:"
+    log "Found unusual setuid/setgid binaries:"
     cat /tmp/setuid_check.txt | tee -a "$LOG_FILE"
     
     # Send alert
@@ -815,7 +879,7 @@ fi
 if command -v ss >/dev/null 2>&1; then
   OPEN_PORTS=$(ss -tuln | grep LISTEN | grep -v "127.0.0.1\|::1")
   if [ ! -z "$OPEN_PORTS" ]; then
-    log "WARNING: Found non-localhost open ports:"
+    log "Found non-localhost open ports:"
     echo "$OPEN_PORTS" | tee -a "$LOG_FILE"
     
     # Send alert if ports other than expected ones
@@ -831,7 +895,7 @@ fi
 if command -v ps >/dev/null 2>&1; then
   SUSPICIOUS=$(ps aux | grep -v "^meowcoin\|^root\|^nobody" | grep -v grep)
   if [ ! -z "$SUSPICIOUS" ]; then
-    log "WARNING: Processes running as non-standard users:"
+    log "Processes running as non-standard users:"
     echo "$SUSPICIOUS" | tee -a "$LOG_FILE"
     
     # Send alert
@@ -867,7 +931,7 @@ WALLET_ISSUES=0
 for WALLET in $(find /home/meowcoin/.meowcoin -name "wallet.dat" 2>/dev/null); do
   PERMS=$(stat -c "%a" "$WALLET")
   if [ "$PERMS" != "600" ]; then
-    log "CRITICAL: $WALLET has incorrect permissions: $PERMS"
+    log "wallet.dat has incorrect permissions: $PERMS"
     chmod 600 "$WALLET"
     log "Fixed permissions on $WALLET"
     WALLET_ISSUES=$((WALLET_ISSUES+1))
@@ -879,7 +943,7 @@ KEY_ISSUES=0
 for KEYFILE in $(find /home/meowcoin/.meowcoin -name "*key*" -o -name "*.pem" -o -name "*.key" 2>/dev/null); do
   PERMS=$(stat -c "%a" "$KEYFILE")
   if [ "$PERMS" != "600" ] && [ "$PERMS" != "400" ]; then
-    log "WARNING: $KEYFILE has incorrect permissions: $PERMS"
+    log "$KEYFILE has incorrect permissions: $PERMS"
     chmod 600 "$KEYFILE"
     log "Fixed permissions on $KEYFILE"
     KEY_ISSUES=$((KEY_ISSUES+1))
@@ -891,7 +955,7 @@ CONFIG_ISSUES=0
 for CONFIG in $(find /home/meowcoin/.meowcoin -name "*.conf" 2>/dev/null); do
   PERMS=$(stat -c "%a" "$CONFIG")
   if [ "$PERMS" != "600" ] && [ "$PERMS" != "640" ]; then
-    log "WARNING: $CONFIG has incorrect permissions: $PERMS"
+    log "$CONFIG has incorrect permissions: $PERMS"
     chmod 640 "$CONFIG"
     log "Fixed permissions on $CONFIG"
     CONFIG_ISSUES=$((CONFIG_ISSUES+1))
@@ -903,7 +967,7 @@ DIR_ISSUES=0
 for DIR in $(find /home/meowcoin/.meowcoin -type d 2>/dev/null); do
   PERMS=$(stat -c "%a" "$DIR")
   if [ "$PERMS" != "750" ] && [ "$PERMS" != "700" ]; then
-    log "WARNING: $DIR has incorrect permissions: $PERMS"
+    log "$DIR has incorrect permissions: $PERMS"
     chmod 750 "$DIR"
     log "Fixed permissions on $DIR"
     DIR_ISSUES=$((DIR_ISSUES+1))
@@ -940,7 +1004,7 @@ EOF
     chmod 644 /etc/cron.d/meowcoin-security
     log "Scheduled regular security checks via cron"
   else
-    log "WARNING: Cannot schedule security checks (cron.d directory not found)"
+    log "Cannot schedule security checks (cron.d directory not found)"
     
     # If we're using supervisord, we could add them there
     if [ -d "/etc/supervisor/conf.d" ] && command -v supervisorctl >/dev/null 2>&1; then

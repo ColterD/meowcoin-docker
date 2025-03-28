@@ -5,14 +5,14 @@ FROM alpine:3.19.1 AS builder
 ARG BUILDKIT_INLINE_CACHE=1
 ARG MEOWCOIN_VERSION
 
-# Add labels for better maintainability
+# Add labels for metadata
 LABEL org.opencontainers.image.source="https://github.com/colterd/meowcoin-docker"
 LABEL org.opencontainers.image.description="Docker image for Meowcoin Core"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.vendor="ColterD"
 LABEL org.opencontainers.image.documentation="https://github.com/colterd/meowcoin-docker/wiki"
 
-# Pin specific dependency versions for reproducibility
+# Install build dependencies - pinned versions for reproducibility
 RUN apk add --no-cache \
     build-base=0.5-r3 \
     openssl-dev=3.1.4-r5 \
@@ -52,14 +52,13 @@ RUN MEOWCOIN_VERSION=$(cat meowcoin_version.txt) && \
         exit 1; \
     fi
 
-# Build Meowcoin with proper caching and optimizations
+# Build Meowcoin
 RUN MEOWCOIN_VERSION=$(cat meowcoin_version.txt) && \
     echo "Cloning Meowcoin repository at version $MEOWCOIN_VERSION..." && \
     git clone --depth 1 --branch $MEOWCOIN_VERSION https://github.com/Meowcoin-Foundation/Meowcoin.git && \
     cd Meowcoin && \
     echo "Running autogen.sh..." && \
     ./autogen.sh && \
-    # Optimize build configuration for production with security hardening
     echo "Running configure with security hardening options..." && \
     ./configure --prefix=/usr \
                 --disable-tests \
@@ -73,18 +72,15 @@ RUN MEOWCOIN_VERSION=$(cat meowcoin_version.txt) && \
                 --disable-ccache \
                 CXXFLAGS="-O2 -pipe -fPIC -fstack-protector-all" \
                 LDFLAGS="-Wl,-z,relro,-z,now" && \
-    # Use all available CPU cores for faster build
     echo "Building Meowcoin..." && \
     make -j$(nproc) && \
     echo "Installing Meowcoin..." && \
     make install DESTDIR=/install && \
-    # Strip debug symbols to reduce binary size
     echo "Stripping binaries..." && \
     strip /install/usr/bin/meowcoin* && \
-    # Record build success in build info
     echo "Build completed successfully at $(date -u -Iseconds)" >> /build-info.txt
 
-# Build Prometheus exporter with proper version pinning
+# Build Prometheus exporter
 RUN export GOPATH=/go && \
     mkdir -p /go && \
     echo "Building Prometheus exporter..." && \
@@ -109,7 +105,7 @@ RUN echo "Verifying binary integrity..." && \
 # Copy build info
 COPY --from=0 /build-info.txt /install/build-info.txt
 
-# Runtime stage
+# Runtime stage with minimized layers
 FROM alpine:3.19.1
 
 # Add labels
@@ -122,7 +118,7 @@ LABEL org.opencontainers.image.documentation="https://github.com/colterd/meowcoi
 LABEL org.opencontainers.image.created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 LABEL org.opencontainers.image.version="$(cat /meowcoin_version.txt 2>/dev/null || echo 'unknown')"
 
-# Install runtime dependencies with specific versions
+# Install runtime dependencies in a single layer to reduce image size
 RUN apk add --no-cache \
     openssl=3.1.4-r5 \
     boost-filesystem=1.82.0-r1 \
@@ -139,21 +135,25 @@ RUN apk add --no-cache \
     tzdata=2023d-r0 \
     shadow=4.14.2-r0 \
     curl=8.5.0-r0 \
-    tini=0.19.0-r1
+    tini=0.19.0-r1 && \
+    rm -rf /var/cache/apk/*
 
 # Create meowcoin user with specific UID/GID for better security
 RUN addgroup -g 1000 -S meowcoin && \
     adduser -u 1000 -S meowcoin -G meowcoin -h /home/meowcoin -s /sbin/nologin
 
-# Create necessary directories with proper permissions
+# Create necessary directories with proper permissions in one layer
 RUN mkdir -p /etc/meowcoin \
     /var/log/meowcoin \
     /var/lib/meowcoin \
     /home/meowcoin/.meowcoin/certs \
     /home/meowcoin/.meowcoin/logs \
-    /home/meowcoin/.meowcoin/backups && \
+    /home/meowcoin/.meowcoin/backups \
+    /data && \
     chown -R meowcoin:meowcoin /home/meowcoin && \
+    chown meowcoin:meowcoin /data && \
     chmod 750 /home/meowcoin && \
+    chmod 750 /data && \
     chmod 750 /home/meowcoin/.meowcoin
 
 # Copy binaries from builder
@@ -161,44 +161,23 @@ COPY --from=builder /install/usr/bin/meowcoin* /usr/bin/
 COPY --from=builder /install/usr/local/bin/ /usr/local/bin/
 COPY --from=builder /install/build-info.txt /build-info.txt
 
-# Copy scripts and make sure they're executable
+# Copy scripts and configuration in one layer
 COPY scripts/entrypoint/ /usr/local/bin/entrypoint/
 COPY scripts/backup/ /usr/local/bin/backup/
 COPY scripts/monitoring/ /usr/local/bin/monitoring/
 COPY scripts/utils/ /usr/local/bin/utils/
+COPY config/supervisord/ /etc/supervisor/conf.d/
+COPY config/fail2ban/ /etc/fail2ban/
+COPY config/templates/ /etc/meowcoin/templates/
+COPY meowcoin_version.txt /meowcoin_version.txt
 
 # Setup script permissions
 RUN chmod -R +x /usr/local/bin/entrypoint/ /usr/local/bin/backup/ /usr/local/bin/monitoring/ /usr/local/bin/utils/ && \
-    ln -s /usr/local/bin/entrypoint/main.sh /entrypoint.sh
-
-# Copy supervisor config
-COPY config/supervisord/ /etc/supervisor/conf.d/
-
-# Copy fail2ban config
-COPY config/fail2ban/ /etc/fail2ban/
-
-# Copy config templates
-COPY config/templates/ /etc/meowcoin/templates/
-
-# Copy version information
-COPY meowcoin_version.txt /meowcoin_version.txt
-
-# Create directories for mounting and set restrictive permissions
-RUN mkdir -p /data && \
-    chown meowcoin:meowcoin /data && \
-    chmod 750 /data
-
-# Security hardening
-RUN echo "Applying security hardening..." && \
-    # Remove unnecessary shell access
-    chmod 750 /usr/bin/meowcoin* && \
-    # Set restrictive permissions
+    ln -s /usr/local/bin/entrypoint/main.sh /entrypoint.sh && \
     chmod 640 /etc/fail2ban/jail.* && \
-    # Create security limits file
     echo "* hard core 0" > /etc/security/limits.conf && \
     echo "* hard nofile 65535" >> /etc/security/limits.conf && \
     echo "* soft nofile 65535" >> /etc/security/limits.conf && \
-    # Verify binaries
     sha256sum /usr/bin/meowcoin* > /bin-checksums.txt
 
 # Volume for blockchain data
@@ -207,9 +186,9 @@ VOLUME ["/home/meowcoin/.meowcoin"]
 # Expose ports (RPC, P2P, ZMQ, and Prometheus metrics)
 EXPOSE 8332 8333 9449 28332
 
-# Health check
-HEALTHCHECK --interval=1m --timeout=30s --start-period=30m --retries=3 \
-  CMD /usr/local/bin/monitoring/health-check.sh
+# Detailed health check 
+HEALTHCHECK --interval=5m --timeout=30s --start-period=30m --retries=3 \
+  CMD /usr/local/bin/monitoring/health-check.sh || exit 1
 
 # Use tini as init for proper signal handling and zombie process reaping
 ENTRYPOINT ["/sbin/tini", "--", "/entrypoint.sh"]

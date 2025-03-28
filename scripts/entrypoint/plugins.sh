@@ -19,7 +19,7 @@ log() {
   echo "[$TRACE_ID][$(date -Iseconds)] $1" | tee -a $PLUGIN_LOG
 }
 
-# Error handling function for better plugin error management
+# Error handling function for plugin errors
 handle_plugin_error() {
   local PLUGIN_NAME="$1"
   local EXIT_CODE="$2"
@@ -50,13 +50,13 @@ handle_plugin_error() {
   if [ -f "$PLUGIN_DIR/.plugin_errors.json" ]; then
     local ERROR_COUNT=$(jq -r ".[\"$PLUGIN_NAME\"].count // 0" "$PLUGIN_DIR/.plugin_errors.json")
     if [ $ERROR_COUNT -gt 5 ]; then
-      log "WARNING: Plugin $PLUGIN_NAME has failed $ERROR_COUNT times, disabling"
+      log "Plugin $PLUGIN_NAME has failed $ERROR_COUNT times, disabling"
       disable_plugin "$PLUGIN_NAME"
     fi
   fi
 }
 
-# Initialize the plugin system with better security
+# Initialize the plugin system with better resource isolation
 function init_plugin_system() {
   mkdir -p $(dirname $PLUGIN_LOG)
   touch $PLUGIN_LOG
@@ -108,6 +108,48 @@ function init_plugin_system() {
   log "Plugin system initialized with $(jq -r 'keys | length' $HOOK_REGISTRY) hooks"
 }
 
+# Setup cgroup v2 for plugin resource isolation
+function setup_plugin_cgroup() {
+  local PLUGIN_NAME="$1"
+  
+  if [ -d "/sys/fs/cgroup" ]; then
+    log "Setting up cgroup for plugin: $PLUGIN_NAME"
+    
+    # Create plugin cgroup
+    mkdir -p /sys/fs/cgroup/meowcoin-plugins/$PLUGIN_NAME 2>/dev/null || true
+    
+    if [ -d "/sys/fs/cgroup/meowcoin-plugins/$PLUGIN_NAME" ]; then
+      # Set memory limit with buffer protection
+      if [ -f "/sys/fs/cgroup/meowcoin-plugins/$PLUGIN_NAME/memory.max" ]; then
+        echo "${PLUGIN_MEMORY_LIMIT}" > /sys/fs/cgroup/meowcoin-plugins/$PLUGIN_NAME/memory.max 2>/dev/null || true
+        # Disable swap
+        if [ -f "/sys/fs/cgroup/meowcoin-plugins/$PLUGIN_NAME/memory.swap.max" ]; then
+          echo "0" > /sys/fs/cgroup/meowcoin-plugins/$PLUGIN_NAME/memory.swap.max 2>/dev/null || true
+        fi
+      fi
+      
+      # Set CPU limits with more granularity
+      if [ -f "/sys/fs/cgroup/meowcoin-plugins/$PLUGIN_NAME/cpu.max" ]; then
+        # Format: $quota $period
+        echo "$PLUGIN_CPU_LIMIT 100000" > /sys/fs/cgroup/meowcoin-plugins/$PLUGIN_NAME/cpu.max 2>/dev/null || true
+      fi
+      
+      # Set I/O limits if supported
+      if [ -f "/sys/fs/cgroup/meowcoin-plugins/$PLUGIN_NAME/io.max" ]; then
+        echo "250" > /sys/fs/cgroup/meowcoin-plugins/$PLUGIN_NAME/io.max 2>/dev/null || true
+      fi
+      
+      log "Cgroup configured for plugin: $PLUGIN_NAME"
+      return 0
+    else
+      log "Failed to create cgroup for plugin: $PLUGIN_NAME"
+    fi
+  fi
+  
+  log "Cgroups not available or not mounted"
+  return 1
+}
+
 # Enhanced plugin validation with security checks
 function validate_plugin() {
   local PLUGIN_PATH="$1"
@@ -123,67 +165,67 @@ function validate_plugin() {
   
   # Basic file checks
   if [ ! -f "$PLUGIN_PATH" ]; then
-    log "ERROR: Plugin file not found: $PLUGIN_PATH"
+    log "Plugin file not found: $PLUGIN_PATH"
     return 1
   fi
   
   if [ ! -r "$PLUGIN_PATH" ]; then
-    log "ERROR: Plugin file not readable: $PLUGIN_PATH"
+    log "Plugin file not readable: $PLUGIN_PATH"
     return 1
   fi
   
   # Check file size
   local FILE_SIZE=$(wc -c < "$PLUGIN_PATH")
   if [ $FILE_SIZE -gt 100000 ]; then
-    log "WARNING: Plugin file size exceeds 100KB: $PLUGIN_PATH ($FILE_SIZE bytes)"
+    log "Plugin file size exceeds 100KB: $PLUGIN_PATH ($FILE_SIZE bytes)"
     return 1
   fi
   
   # Check for suspicious commands with more thorough pattern matching
   if grep -qE '\b(curl|wget|nc|ncat|telnet|ssh|scp|sftp|ftp|netcat|nc)\b' "$PLUGIN_PATH"; then
-    log "WARNING: Plugin contains networking commands, potential security risk"
+    log "Plugin contains networking commands, potential security risk"
     return 1
   fi
   
   # Check for suspicious shell escapes and command execution
   if grep -qE '\beval\b|\bexec\b|\bsystem\b|\bpopen\b|\`.*\`|\$\(.*\)' "$PLUGIN_PATH"; then
-    log "WARNING: Plugin contains potentially unsafe evaluation"
+    log "Plugin contains potentially unsafe evaluation"
     return 1
   fi
   
   # Check for excessive privileges
   if grep -qE '\bsudo\b|\bsu\s|\bchroot\b|\bsetuid\b|\bsetgid\b' "$PLUGIN_PATH"; then
-    log "WARNING: Plugin attempts to escalate privileges"
+    log "Plugin attempts to escalate privileges"
     return 1
   fi
   
   # Check for system file access outside the allowed paths with more precise pattern matching
   if grep -qE '/(etc|var|root|boot|usr|lib|bin|sbin)/' "$PLUGIN_PATH" | grep -vE '/etc/meowcoin|/var/log/meowcoin|/home/meowcoin'; then
-    log "WARNING: Plugin attempts to access restricted system files"
+    log "Plugin attempts to access restricted system files"
     return 1
   fi
   
   # Check for infinite loops and forks
   if grep -qE 'while\s+:|while\s+true|until\s+false|for\(\(;;\)\)|fork\(\)|\&\s*$' "$PLUGIN_PATH"; then
-    log "WARNING: Plugin contains potential infinite loops or forks"
+    log "Plugin contains potential infinite loops or forks"
     return 1
   fi
   
   # Check for network socket operations
   if grep -qE 'socket\(|bind\(|listen\(|accept\(|connect\(' "$PLUGIN_PATH"; then
-    log "WARNING: Plugin contains network socket operations"
+    log "Plugin contains network socket operations"
     return 1
   }
   
   # Check for risky file operations
   if grep -qE '\bchmod\s+777|\bchmod\s+a+|\bchmod\s+o+w' "$PLUGIN_PATH"; then
-    log "WARNING: Plugin contains risky file permission changes"
+    log "Plugin contains risky file permission changes"
     return 1
   }
   
   # Check plugin syntax
   if ! bash -n "$PLUGIN_PATH" >/dev/null 2>&1; then
-    log "ERROR: Plugin contains syntax errors: $PLUGIN_NAME"
+    log "Plugin contains syntax errors: $PLUGIN_NAME"
     return 1
   fi
   
@@ -228,6 +270,9 @@ function load_plugins() {
         continue
       fi
       
+      # Setup resource isolation with cgroups if available
+      setup_plugin_cgroup "$PLUGIN_NAME"
+      
       # Create plugin data directory with proper permissions
       mkdir -p "$PLUGIN_DIR/data/$PLUGIN_NAME"
       chmod 750 "$PLUGIN_DIR/data/$PLUGIN_NAME"
@@ -254,20 +299,20 @@ function register_hook() {
       # Valid hook name
       ;;
     *)
-      plugin_log "ERROR: Tried to register invalid hook: \$HOOK_NAME"
+      plugin_log "Tried to register invalid hook: \$HOOK_NAME" "ERROR"
       return 1
       ;;
   esac
   
   # Validate function name
   if [[ ! "\$FUNCTION_NAME" =~ ^[a-zA-Z0-9_]+$ ]]; then
-    plugin_log "ERROR: Tried to register invalid function name: \$FUNCTION_NAME"
+    plugin_log "Tried to register invalid function name: \$FUNCTION_NAME" "ERROR"
     return 1
   fi
   
   # Check if function exists
   if ! type "\$FUNCTION_NAME" &>/dev/null; then
-    plugin_log "ERROR: Tried to register non-existent function: \$FUNCTION_NAME"
+    plugin_log "Tried to register non-existent function: \$FUNCTION_NAME" "ERROR"
     return 1
   fi
   
@@ -334,7 +379,7 @@ function meowcoin_rpc() {
   
   # Validate command for basic safety
   if [[ ! "\$CMD" =~ ^[a-zA-Z0-9_]+$ ]]; then
-    plugin_log "ERROR: Invalid RPC command: \$CMD" "ERROR"
+    plugin_log "Invalid RPC command: \$CMD" "ERROR"
     return 1
   fi
   
@@ -352,7 +397,7 @@ function meowcoin_rpc() {
     RESULT=\$(cat "\$TMPFILE")
     rm -f "\$TMPFILE"
     
-    plugin_log "ERROR: RPC command failed: \$CMD (status \$STATUS): \$RESULT" "ERROR"
+    plugin_log "RPC command failed: \$CMD (status \$STATUS): \$RESULT" "ERROR"
     return \$STATUS
   fi
 }
@@ -372,36 +417,33 @@ function plugin_exec() {
   
   plugin_log "Executing command in sandbox: \$CMD_STR"
   
-  # Execute with resource limits using cgroups if available
-  local PID_FILE="\$SANDBOX_DIR/cmd.pid"
-  local EXIT_CODE=0
+  # Prepare for cgroup usage if available
+  local USE_CGROUP=false
+  if [ -d "/sys/fs/cgroup/meowcoin-plugins/$PLUGIN_NAME" ]; then
+    USE_CGROUP=true
+  fi
   
   # Create temporary script that will be executed
   cat > "\$SANDBOX_DIR/exec.sh" <<SCRIPT
 #!/bin/bash
 set -e
 cd "\$SANDBOX_DIR"
-echo \$\$ > "$PID_FILE"
+echo \$\$ > "\$SANDBOX_DIR/cmd.pid"
 exec "\$@"
 SCRIPT
   
   chmod +x "\$SANDBOX_DIR/exec.sh"
   
-  # Check for cgroups v2
-  if [ -d "/sys/fs/cgroup" ] && [ -w "/sys/fs/cgroup" ]; then
-    # Using cgroups v2
-    mkdir -p /sys/fs/cgroup/meowcoin-plugins/\$PLUGIN_NAME 2>/dev/null || true
-    
-    echo $PLUGIN_MEMORY_LIMIT > /sys/fs/cgroup/meowcoin-plugins/\$PLUGIN_NAME/memory.max 2>/dev/null || true
-    echo $PLUGIN_CPU_LIMIT > /sys/fs/cgroup/meowcoin-plugins/\$PLUGIN_NAME/cpu.max 2>/dev/null || true
-    
-    # Run command with timeout and log output
+  # Execute with resource limits
+  local EXIT_CODE=0
+  
+  if [ "\$USE_CGROUP" = "true" ]; then
+    # Using cgroups for resource control
+    echo \$\$ > /sys/fs/cgroup/meowcoin-plugins/$PLUGIN_NAME/cgroup.procs
     timeout ${PLUGIN_EXECUTION_TIMEOUT}s "\$SANDBOX_DIR/exec.sh" "\$@" > "\$CMD_LOG" 2>&1
     EXIT_CODE=\$?
-    
-    # Clean up cgroup
-    cat "\$PID_FILE" | xargs -r -I{} echo {} > /sys/fs/cgroup/meowcoin-plugins/\$PLUGIN_NAME/cgroup.procs 2>/dev/null || true
-    rmdir /sys/fs/cgroup/meowcoin-plugins/\$PLUGIN_NAME 2>/dev/null || true
+    # Try to remove from cgroup
+    echo \$\$ > /sys/fs/cgroup/cgroup.procs
   else
     # Fallback without cgroups
     timeout ${PLUGIN_EXECUTION_TIMEOUT}s nice -n 15 "\$SANDBOX_DIR/exec.sh" "\$@" > "\$CMD_LOG" 2>&1
@@ -414,13 +456,10 @@ SCRIPT
   # Log execution result
   if [ \$EXIT_CODE -eq 0 ]; then
     plugin_log "Command executed successfully"
+  elif [ \$EXIT_CODE -eq 124 ]; then
+    plugin_log "Command timed out after ${PLUGIN_EXECUTION_TIMEOUT} seconds" "ERROR"
   else
-    if [ \$EXIT_CODE -eq 124 ]; then
-      plugin_log "Command timed out after ${PLUGIN_EXECUTION_TIMEOUT} seconds" "ERROR"
-    else
-      plugin_log "Command failed with exit code \$EXIT_CODE" "ERROR"
-    fi
-    
+    plugin_log "Command failed with exit code \$EXIT_CODE" "ERROR"
     # Log the first few lines of output for debugging
     plugin_log "Command output (first 5 lines): \$(head -n 5 "\$CMD_LOG")" "ERROR"
   fi
@@ -441,7 +480,7 @@ function plugin_config_get() {
   
   # Validate key
   if [[ ! "\$KEY" =~ ^[a-zA-Z0-9_\.]+$ ]]; then
-    plugin_log "ERROR: Invalid configuration key: \$KEY" "ERROR"
+    plugin_log "Invalid configuration key: \$KEY" "ERROR"
     return 1
   fi
   
@@ -460,7 +499,7 @@ function plugin_config_set() {
   
   # Validate key
   if [[ ! "\$KEY" =~ ^[a-zA-Z0-9_\.]+$ ]]; then
-    plugin_log "ERROR: Invalid configuration key: \$KEY" "ERROR"
+    plugin_log "Invalid configuration key: \$KEY" "ERROR"
     return 1
   fi
   
@@ -482,7 +521,7 @@ function plugin_state_save() {
   
   # Validate key
   if [[ ! "\$KEY" =~ ^[a-zA-Z0-9_\.]+$ ]]; then
-    plugin_log "ERROR: Invalid state key: \$KEY" "ERROR"
+    plugin_log "Invalid state key: \$KEY" "ERROR"
     return 1
   fi
   
@@ -506,7 +545,7 @@ function plugin_state_get() {
   
   # Validate key
   if [[ ! "\$KEY" =~ ^[a-zA-Z0-9_\.]+$ ]]; then
-    plugin_log "ERROR: Invalid state key: \$KEY" "ERROR"
+    plugin_log "Invalid state key: \$KEY" "ERROR"
     return 1
   fi
   
@@ -576,7 +615,7 @@ function plugin_send_metric() {
   
   # Validate metric name
   if [[ ! "\$METRIC_NAME" =~ ^[a-zA-Z0-9_\.]+$ ]]; then
-    plugin_log "ERROR: Invalid metric name: \$METRIC_NAME" "ERROR"
+    plugin_log "Invalid metric name: \$METRIC_NAME" "ERROR"
     return 1
   fi
   
@@ -617,7 +656,7 @@ EOF
         log "Plugin loaded: $PLUGIN_NAME"
         ENABLED_COUNT=$((ENABLED_COUNT + 1))
       else
-        log "ERROR: Failed to load plugin: $PLUGIN_NAME"
+        log "Failed to load plugin: $PLUGIN_NAME"
         handle_plugin_error "$PLUGIN_NAME" "$?" "Failed to load plugin"
         FAILED_COUNT=$((FAILED_COUNT + 1))
       fi
@@ -701,16 +740,10 @@ exec $FUNCTION
 EOF
         chmod +x "$SANDBOX_DIR/exec_hook.sh"
         
-        # Check for cgroups v2
+        # Configure cgroup if available
         local USING_CGROUPS=false
-        if [ -d "/sys/fs/cgroup" ] && [ -w "/sys/fs/cgroup" ]; then
-          # Using cgroups v2
-          mkdir -p /sys/fs/cgroup/meowcoin-plugins/$PLUGIN 2>/dev/null || true
-          if [ -d "/sys/fs/cgroup/meowcoin-plugins/$PLUGIN" ]; then
-            USING_CGROUPS=true
-            echo "$PLUGIN_MEMORY_LIMIT" > /sys/fs/cgroup/meowcoin-plugins/$PLUGIN/memory.max 2>/dev/null || true
-            echo "$PLUGIN_CPU_LIMIT" > /sys/fs/cgroup/meowcoin-plugins/$PLUGIN/cpu.max 2>/dev/null || true
-          fi
+        if [ -d "/sys/fs/cgroup/meowcoin-plugins/$PLUGIN" ]; then
+          USING_CGROUPS=true
         fi
         
         # Execute hook with proper isolation and resource limits
@@ -745,7 +778,8 @@ EOF
         
         # Clean up cgroup if used
         if [ "$USING_CGROUPS" = "true" ]; then
-          rmdir /sys/fs/cgroup/meowcoin-plugins/$PLUGIN 2>/dev/null || true
+          # Move process back to root cgroup
+          echo $$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null || true
         fi
         
         # Clean up sandbox with secure deletion
@@ -754,45 +788,41 @@ EOF
         
         if [ $HOOK_STATUS -ne 0 ]; then
           if [ $HOOK_STATUS -eq 124 ]; then
-            log "WARNING: Hook execution timed out after ${PLUGIN_EXECUTION_TIMEOUT}s: $PLUGIN.$FUNCTION"
-            handle_plugin_error "$PLUGIN" "$HOOK_STATUS" "Hook execution timed out"
-          else
-            log "WARNING: Hook execution failed: $PLUGIN.$FUNCTION (status $HOOK_STATUS)"
-            handle_plugin_error "$PLUGIN" "$HOOK_STATUS" "Hook execution failed"
-          fi
-          FAILURE_COUNT=$((FAILURE_COUNT + 1))
-        else
-          log "Hook executed successfully: $PLUGIN.$FUNCTION ($DURATION seconds)"
-          SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
-          
-          # Record successful execution
-          if [ -f "$PLUGIN_DIR/.plugin_success.json" ]; then
-            local TEMP_FILE=$(mktemp)
-            jq --arg plugin "$PLUGIN" \
-               --arg func "$FUNCTION" \
-               --arg time "$(date -Iseconds)" \
-               --arg duration "$DURATION" \
-               '.[$plugin][$func] = {"last_success": $time, "duration": $duration}' \
-               "$PLUGIN_DIR/.plugin_success.json" > "$TEMP_FILE"
-            mv "$TEMP_FILE" "$PLUGIN_DIR/.plugin_success.json"
-          else
-            echo "{\"$PLUGIN\": {\"$FUNCTION\": {\"last_success\": \"$(date -Iseconds)\", \"duration\": \"$DURATION\"}}}" > "$PLUGIN_DIR/.plugin_success.json"
-          fi
+            log "Hook execution timed out after ${PLUGIN_EXECUTION_TIMEOUT}s: $handle_plugin_error "$PLUGIN" "$HOOK_STATUS" "Hook execution failed"
         fi
-        
-        # Keep the log file for a limited time for debugging (last 20 per hook)
-        find "/var/log/meowcoin/hooks" -name "${PLUGIN}_${FUNCTION}_*.log" -type f | \
-          sort -r | tail -n +21 | xargs rm -f 2>/dev/null || true
-      else
-        log "ERROR: Function not found: $FUNCTION"
-        handle_plugin_error "$PLUGIN" "404" "Function not found: $FUNCTION"
         FAILURE_COUNT=$((FAILURE_COUNT + 1))
+      else
+        log "Hook executed successfully: $PLUGIN.$FUNCTION ($DURATION seconds)"
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+        
+        # Record successful execution
+        if [ -f "$PLUGIN_DIR/.plugin_success.json" ]; then
+          local TEMP_FILE=$(mktemp)
+          jq --arg plugin "$PLUGIN" \
+             --arg func "$FUNCTION" \
+             --arg time "$(date -Iseconds)" \
+             --arg duration "$DURATION" \
+             '.[$plugin][$func] = {"last_success": $time, "duration": $duration}' \
+             "$PLUGIN_DIR/.plugin_success.json" > "$TEMP_FILE"
+          mv "$TEMP_FILE" "$PLUGIN_DIR/.plugin_success.json"
+        else
+          echo "{\"$PLUGIN\": {\"$FUNCTION\": {\"last_success\": \"$(date -Iseconds)\", \"duration\": \"$DURATION\"}}}" > "$PLUGIN_DIR/.plugin_success.json"
+        fi
       fi
+      
+      # Keep the log file for a limited time for debugging (last 20 per hook)
+      find "/var/log/meowcoin/hooks" -name "${PLUGIN}_${FUNCTION}_*.log" -type f | \
+        sort -r | tail -n +21 | xargs rm -f 2>/dev/null || true
     else
-      log "ERROR: Plugin environment not found: $PLUGIN"
+      log "Function not found: $FUNCTION"
+      handle_plugin_error "$PLUGIN" "404" "Function not found: $FUNCTION"
       FAILURE_COUNT=$((FAILURE_COUNT + 1))
     fi
-  done <<< "$HOOKS"
+  else
+    log "Plugin environment not found: $PLUGIN"
+    FAILURE_COUNT=$((FAILURE_COUNT + 1))
+  fi
+done <<< "$HOOKS"
   
   log "Finished executing hooks: $HOOK_NAME ($SUCCESS_COUNT succeeded, $FAILURE_COUNT failed)"
   
@@ -809,7 +839,7 @@ function disable_plugin() {
   local PLUGIN_NAME="$1"
   
   if [ ! -f "$PLUGIN_DIR/${PLUGIN_NAME}.sh" ] && [ ! -f "$ENABLED_PLUGINS_DIR/${PLUGIN_NAME}.sh" ]; then
-    log "ERROR: Plugin not found: $PLUGIN_NAME"
+    log "Plugin not found: $PLUGIN_NAME"
     return 1
   fi
   
@@ -844,333 +874,6 @@ function disable_plugin() {
   
   log "Plugin disabled: $PLUGIN_NAME"
   return 0
-}
-
-# Function to enable a previously disabled plugin
-function enable_plugin() {
-  local PLUGIN_NAME="$1"
-  
-  if [ ! -f "$PLUGIN_DIR/${PLUGIN_NAME}.sh" ] && [ ! -f "$DISABLED_PLUGINS_DIR/${PLUGIN_NAME}.sh" ]; then
-    log "ERROR: Plugin not found: $PLUGIN_NAME"
-    return 1
-  fi
-  
-  log "Enabling plugin: $PLUGIN_NAME"
-  
-  # Remove disabled marker
-  rm -f "$PLUGIN_DIR/.$PLUGIN_NAME.disabled" 2>/dev/null || true
-  
-  # Copy plugin to enabled directory
-  if [ -f "$PLUGIN_DIR/${PLUGIN_NAME}.sh" ]; then
-    ln -sf "$PLUGIN_DIR/${PLUGIN_NAME}.sh" "$ENABLED_PLUGINS_DIR/${PLUGIN_NAME}.sh"
-  elif [ -f "$DISABLED_PLUGINS_DIR/${PLUGIN_NAME}.sh" ]; then
-    ln -sf "$DISABLED_PLUGINS_DIR/${PLUGIN_NAME}.sh" "$ENABLED_PLUGINS_DIR/${PLUGIN_NAME}.sh"
-  fi
-  
-  # Re-validate and reload the plugin
-  if validate_plugin "$ENABLED_PLUGINS_DIR/${PLUGIN_NAME}.sh"; then
-    refresh_plugin "$PLUGIN_NAME"
-    log "Plugin enabled: $PLUGIN_NAME"
-    return 0
-  else
-    log "ERROR: Cannot enable plugin due to validation failure: $PLUGIN_NAME"
-    disable_plugin "$PLUGIN_NAME"
-    return 1
-  fi
-}
-
-# Function to refresh a plugin
-function refresh_plugin() {
-  local PLUGIN_NAME="$1"
-  
-  log "Refreshing plugin: $PLUGIN_NAME"
-  
-  # Check if plugin exists
-  if [ ! -f "$ENABLED_PLUGINS_DIR/${PLUGIN_NAME}.sh" ] && [ ! -f "$PLUGIN_DIR/${PLUGIN_NAME}.sh" ]; then
-    log "ERROR: Plugin not found: $PLUGIN_NAME"
-    return 1
-  fi
-  
-  # Get plugin path
-  local PLUGIN_PATH="$ENABLED_PLUGINS_DIR/${PLUGIN_NAME}.sh"
-  if [ ! -f "$PLUGIN_PATH" ]; then
-    PLUGIN_PATH="$PLUGIN_DIR/${PLUGIN_NAME}.sh"
-  fi
-  
-  # Unregister all hooks for this plugin
-  if [ -f "$HOOK_REGISTRY" ]; then
-    # Create a new registry file without the specified plugin's hooks
-    local TEMP_FILE=$(mktemp)
-    
-    jq --arg plugin "$PLUGIN_NAME" '
-      to_entries | 
-      map(.value |= map(select(.plugin != $plugin))) | 
-      from_entries
-    ' "$HOOK_REGISTRY" > "$TEMP_FILE"
-    
-    mv "$TEMP_FILE" "$HOOK_REGISTRY"
-    
-    log "Unregistered all hooks for plugin: $PLUGIN_NAME"
-  fi
-  
-  # Re-validate plugin
-  if ! validate_plugin "$PLUGIN_PATH"; then
-    log "ERROR: Plugin validation failed during refresh: $PLUGIN_NAME"
-    disable_plugin "$PLUGIN_NAME"
-    return 1
-  fi
-  
-  # Create new plugin environment
-  PLUGIN_ENV="/tmp/meowcoin/plugin_env_${PLUGIN_NAME}"
-  rm -f "$PLUGIN_ENV" 2>/dev/null || true
-  
-  # Create plugin environment with updated timestamp
-  cat > "$PLUGIN_ENV" <<EOF
-#!/bin/bash
-# Plugin: $PLUGIN_NAME
-# Refreshed: $(date -Iseconds)
-
-# Plugin utility functions...
-# (Include all the same functions as in the load_plugins function)
-EOF
-  
-  # Source the plugin environment
-  source "$PLUGIN_ENV"
-  
-  # Source the plugin in a subshell to isolate potential errors
-  (
-    source "$PLUGIN_PATH"
-    plugin_log "Plugin refreshed successfully"
-  )
-  
-  if [ $? -eq 0 ]; then
-    log "Plugin refreshed successfully: $PLUGIN_NAME"
-    return 0
-  else
-    log "ERROR: Failed to refresh plugin: $PLUGIN_NAME"
-    handle_plugin_error "$PLUGIN_NAME" "$?" "Failed to refresh plugin"
-    return 1
-  fi
-}
-
-# Function to list all plugins with their status
-function list_plugins() {
-  log "Listing all plugins"
-  
-  echo "Plugin Status:"
-  echo "---------------"
-  
-  # Find all plugins
-  find "$PLUGIN_DIR" -maxdepth 1 -name "*.sh" -type f | while read PLUGIN_PATH; do
-    PLUGIN_NAME=$(basename "$PLUGIN_PATH" .sh)
-    
-    # Check if plugin is disabled
-    if [ -f "$PLUGIN_DIR/.$PLUGIN_NAME.disabled" ] || [ -f "$DISABLED_PLUGINS_DIR/$PLUGIN_NAME.sh" ]; then
-      echo "[$PLUGIN_NAME] DISABLED"
-    else
-      # Check if plugin is loaded
-      if [ -f "$ENABLED_PLUGINS_DIR/$PLUGIN_NAME.sh" ]; then
-        echo "[$PLUGIN_NAME] ENABLED"
-      else
-        echo "[$PLUGIN_NAME] UNKNOWN"
-      fi
-    fi
-  done
-  
-  # Find registered hooks
-  if [ -f "$HOOK_REGISTRY" ]; then
-    echo ""
-    echo "Registered Hooks:"
-    echo "----------------"
-    jq -r 'to_entries | .[] | .key + ": " + (.value | length | tostring) + " hook(s)"' "$HOOK_REGISTRY"
-    
-    # Show detailed hook information if requested
-    if [ "$1" = "detailed" ]; then
-      echo ""
-      echo "Hook Details:"
-      echo "------------"
-      jq -r 'to_entries | .[] | select(.value | length > 0) | .key + ":" + (.value | map("\n  - " + .plugin + "." + .function) | join(""))' "$HOOK_REGISTRY"
-    fi
-  fi
-}
-
-# Function to get plugin metrics
-function get_plugin_metrics() {
-  echo "Plugin Metrics:"
-  echo "--------------"
-  
-  # Check if metrics directory exists
-  local METRICS_DIR="/var/lib/meowcoin/metrics"
-  if [ ! -d "$METRICS_DIR" ]; then
-    echo "No metrics available (metrics directory not found)"
-    return 1
-  fi
-  
-  # Find all plugin metrics
-  find "$METRICS_DIR" -name "plugin_*.current" -type f | while read METRIC_FILE; do
-    METRIC_NAME=$(basename "$METRIC_FILE" .current)
-    LAST_VALUE=$(tail -n 1 "$METRIC_FILE" | awk '{print $2}')
-    echo "$METRIC_NAME: $LAST_VALUE"
-  done
-  
-  # Show plugin execution statistics
-  if [ -f "$PLUGIN_DIR/.plugin_success.json" ]; then
-    echo ""
-    echo "Plugin Execution Statistics:"
-    echo "--------------------------"
-    jq -r 'to_entries[] | .key + ":" + (.value | to_entries[] | "\n  - " + .key + " last success: " + .value.last_success + " (duration: " + .value.duration + "s)")' "$PLUGIN_DIR/.plugin_success.json"
-  fi
-  
-  # Show plugin errors
-  if [ -f "$PLUGIN_DIR/.plugin_errors.json" ]; then
-    echo ""
-    echo "Plugin Errors:"
-    echo "-------------"
-    jq -r 'to_entries[] | .key + " errors: " + (.value.count | tostring) + " (last: " + .value.last_error_time + " - " + .value.error + ")"' "$PLUGIN_DIR/.plugin_errors.json"
-  fi
-}
-
-# Generate documentation for plugins
-function generate_plugin_docs() {
-  log "Generating plugin documentation"
-  
-  local DOCS_DIR="/etc/meowcoin/plugins/docs"
-  mkdir -p "$DOCS_DIR"
-  
-  # Generate main README
-  cat > "$DOCS_DIR/README.md" <<EOF
-# Meowcoin Node Plugins
-
-This document provides information about the plugins enabled on this Meowcoin node.
-
-## Enabled Plugins
-
-The following plugins are currently enabled:
-
-EOF
-  
-  # Find all enabled plugins
-  for PLUGIN in "$ENABLED_PLUGINS_DIR"/*.sh; do
-    if [ -f "$PLUGIN" ]; then
-      PLUGIN_NAME=$(basename "$PLUGIN" .sh)
-      
-      # Extract description if available
-      DESCRIPTION=""
-      if grep -q "# Description:" "$PLUGIN"; then
-        DESCRIPTION=$(grep "# Description:" "$PLUGIN" | sed 's/# Description://')
-      else
-        DESCRIPTION="No description available"
-      fi
-      
-      echo "- **${PLUGIN_NAME}**: ${DESCRIPTION}" >> "$DOCS_DIR/README.md"
-      
-      # Generate individual plugin documentation
-      generate_plugin_doc "$PLUGIN_NAME"
-    fi
-  done
-  
-  # List registered hooks
-  echo "" >> "$DOCS_DIR/README.md"
-  echo "## Registered Hooks" >> "$DOCS_DIR/README.md"
-  echo "" >> "$DOCS_DIR/README.md"
-  
-  if [ -f "$HOOK_REGISTRY" ]; then
-    jq -r 'to_entries | .[] | select(.value | length > 0) | .key + ":" + (.value | map("\n  - " + .plugin + "." + .function) | join(""))' "$HOOK_REGISTRY" >> "$DOCS_DIR/README.md"
-  else
-    echo "No hooks registered" >> "$DOCS_DIR/README.md"
-  fi
-  
-  # Add system information
-  echo "" >> "$DOCS_DIR/README.md"
-  echo "## System Information" >> "$DOCS_DIR/README.md"
-  echo "" >> "$DOCS_DIR/README.md"
-  echo "- Plugin system enabled: ${ENABLE_PLUGINS:-false}" >> "$DOCS_DIR/README.md"
-  echo "- Plugin sandboxing: ${PLUGIN_SANDBOX_ENABLED}" >> "$DOCS_DIR/README.md"
-  echo "- Plugin execution timeout: ${PLUGIN_EXECUTION_TIMEOUT} seconds" >> "$DOCS_DIR/README.md"
-  echo "- Plugin memory limit: ${PLUGIN_MEMORY_LIMIT}" >> "$DOCS_DIR/README.md"
-  echo "- Plugin CPU limit: ${PLUGIN_CPU_LIMIT}" >> "$DOCS_DIR/README.md"
-  
-  log "Plugin documentation generated in $DOCS_DIR"
-}
-
-# Generate documentation for a specific plugin
-function generate_plugin_doc() {
-  local PLUGIN_NAME="$1"
-  local PLUGIN_PATH="$ENABLED_PLUGINS_DIR/${PLUGIN_NAME}.sh"
-  
-  if [ ! -f "$PLUGIN_PATH" ]; then
-    PLUGIN_PATH="$PLUGIN_DIR/${PLUGIN_NAME}.sh"
-    if [ ! -f "$PLUGIN_PATH" ]; then
-      log "ERROR: Plugin not found: $PLUGIN_NAME"
-      return 1
-    fi
-  fi
-  
-  local DOC_PATH="$PLUGIN_DIR/docs/${PLUGIN_NAME}.md"
-  mkdir -p "$(dirname "$DOC_PATH")"
-  
-  log "Generating documentation for plugin: $PLUGIN_NAME"
-  
-  # Extract metadata from plugin file
-  local DESCRIPTION=$(grep "# Description:" "$PLUGIN_PATH" | sed 's/# Description://' || echo "No description available")
-  local AUTHOR=$(grep "# Author:" "$PLUGIN_PATH" | sed 's/# Author://' || echo "Unknown")
-  local VERSION=$(grep "# Version:" "$PLUGIN_PATH" | sed 's/# Version://' || echo "Unspecified")
-  local REQUIREMENTS=$(grep "# Requires:" "$PLUGIN_PATH" | sed 's/# Requires://' || echo "None")
-  
-  # Generate markdown documentation
-  cat > "$DOC_PATH" <<EOF
-# Plugin: $PLUGIN_NAME
-
-- **Description**: $DESCRIPTION
-- **Author**: $AUTHOR
-- **Version**: $VERSION
-- **Requirements**: $REQUIREMENTS
-
-## Registered Hooks
-
-EOF
-  
-  # Extract registered hooks for this plugin
-  if [ -f "$HOOK_REGISTRY" ]; then
-    jq -r --arg plugin "$PLUGIN_NAME" '
-      to_entries | 
-      .[] | 
-      select(.value | map(select(.plugin == $plugin)) | length > 0) | 
-      "\(.key):" + (.value | map(select(.plugin == $plugin)) | map("\n  - \(.function)") | join(""))
-    ' "$HOOK_REGISTRY" >> "$DOC_PATH"
-  else
-    echo "No hooks registered" >> "$DOC_PATH"
-  fi
-  
-  # Extract configuration options
-  if grep -q "# Configuration:" "$PLUGIN_PATH"; then
-    echo "" >> "$DOC_PATH"
-    echo "## Configuration Options" >> "$DOC_PATH"
-    echo "" >> "$DOC_PATH"
-    sed -n '/# Configuration:/,/# End Configuration/p' "$PLUGIN_PATH" | grep -v "#" >> "$DOC_PATH"
-  fi
-  
-  # Extract plugin usage examples
-  if grep -q "# Example:" "$PLUGIN_PATH"; then
-    echo "" >> "$DOC_PATH"
-    echo "## Usage Examples" >> "$DOC_PATH"
-    echo "" >> "$DOC_PATH"
-    sed -n '/# Example:/,/# End Example/p' "$PLUGIN_PATH" | grep -v "#" >> "$DOC_PATH"
-  fi
-  
-  # Add execution statistics if available
-  if [ -f "$PLUGIN_DIR/.plugin_success.json" ]; then
-    local PLUGIN_STATS=$(jq -r --arg plugin "$PLUGIN_NAME" 'if .[$plugin] then .[$plugin] | to_entries[] | "- **" + .key + "**: Last execution " + .value.last_success + " (duration: " + .value.duration + "s)" else "" end' "$PLUGIN_DIR/.plugin_success.json")
-    
-    if [ ! -z "$PLUGIN_STATS" ]; then
-      echo "" >> "$DOC_PATH"
-      echo "## Execution Statistics" >> "$DOC_PATH"
-      echo "" >> "$DOC_PATH"
-      echo "$PLUGIN_STATS" >> "$DOC_PATH"
-    fi
-  fi
-  
-  log "Documentation generated for $PLUGIN_NAME at $DOC_PATH"
 }
 
 # Main dispatcher
