@@ -1,0 +1,33 @@
+# Alert configuration for Meowcoin node
+# Generated at $(date -Iseconds)
+
+# Alert method: log, webhook, email
+ALERT_METHOD="${ALERT_METHOD:-log}"
+
+# Webhook configuration
+WEBHOOK_URL="${WEBHOOK_URL:-}"
+WEBHOOK_AUTH_TOKEN="${WEBHOOK_AUTH_TOKEN:-}"
+
+# Email configuration
+EMAIL_TO="${EMAIL_TO:-}"
+EMAIL_FROM="${EMAIL_FROM:-meowcoin-node@localhost}"
+SMTP_SERVER="${SMTP_SERVER:-localhost}"
+SMTP_PORT="${SMTP_PORT:-25}"
+SMTP_USER="${SMTP_USER:-}"
+SMTP_PASSWORD="${SMTP_PASSWORD:-}"
+SMTP_USE_TLS="${SMTP_USE_TLS:-false}"
+
+# Alert settings
+ALERT_COOLDOWN="${ALERT_COOLDOWN:-3600}"  # 1 hour in seconds
+DAILY_SUMMARY="${DAILY_SUMMARY:-true}"    # Send daily summary
+BATCH_ALERTS="${BATCH_ALERTS:-true}"      # Batch alerts together
+ALERT_BATCH_INTERVAL="${ALERT_BATCH_INTERVAL:-900}"  # 15 minutes
+
+# Alert severity thresholds
+# Set to 'none' to disable alerts for this category
+ALERT_LEVEL_NODE_SYNC="${ALERT_LEVEL_NODE_SYNC:-warning}"
+ALERT_LEVEL_CONNECTIONS="${ALERT_LEVEL_CONNECTIONS:-warning}"
+ALERT_LEVEL_DISK_SPACE="${ALERT_LEVEL_DISK_SPACE:-warning}"
+ALERT_LEVEL_MEMPOOL="${ALERT_LEVEL_MEMPOOL:-info}"
+ALERT_LEVEL_SYSTEM="${ALERT_LEVEL_SYSTEM:-warning}"
+ALERT_LEVEL_SECURITY="${ALERT_LEVEL_SECURITY:-critical}"

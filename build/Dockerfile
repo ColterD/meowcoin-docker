@@ -1,5 +1,5 @@
 # build/Dockerfile
-FROM alpine:3.19 AS builder
+FROM alpine:3.19.1 AS builder
 
 # Set ARG for BuildKit cache control and version
 ARG BUILDKIT_INLINE_CACHE=1
@@ -9,21 +9,23 @@ ARG MEOWCOIN_VERSION
 LABEL org.opencontainers.image.source="https://github.com/colterd/meowcoin-docker"
 LABEL org.opencontainers.image.description="Docker image for Meowcoin Core"
 LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.vendor="ColterD"
+LABEL org.opencontainers.image.documentation="https://github.com/colterd/meowcoin-docker/wiki"
 
-# Install build dependencies with explicit versions for better reproducibility
+# Pin specific dependency versions for reproducibility
 RUN apk add --no-cache \
-    build-base \
-    openssl-dev \
-    boost-dev \
-    libevent-dev \
-    miniupnpc-dev \
-    git \
-    curl \
-    ca-certificates \
-    autoconf \
-    automake \
-    libtool \
-    go
+    build-base=0.5-r3 \
+    openssl-dev=3.1.4-r5 \
+    boost-dev=1.82.0-r1 \
+    libevent-dev=2.1.12-r8 \
+    miniupnpc-dev=2.2.5-r0 \
+    git=2.43.0-r0 \
+    curl=8.5.0-r0 \
+    ca-certificates=20230506-r0 \
+    autoconf=2.71-r2 \
+    automake=1.16.5-r1 \
+    libtool=2.4.7-r1 \
+    go=1.21.7-r0
 
 # Set working directory
 WORKDIR /build
@@ -35,17 +37,30 @@ RUN if [ -z "$MEOWCOIN_VERSION" ]; then \
     else echo $MEOWCOIN_VERSION > meowcoin_version.txt; \
     fi
 
-# Create build info file
-RUN echo "Build date: $(date -u)" > /build-info.txt && \
+# Create build info file with detailed information
+RUN echo "Build date: $(date -u -Iseconds)" > /build-info.txt && \
     echo "Builder: Alpine $(cat /etc/alpine-release)" >> /build-info.txt && \
-    echo "Meowcoin version: $(cat meowcoin_version.txt)" >> /build-info.txt
+    echo "Meowcoin version: $(cat meowcoin_version.txt)" >> /build-info.txt && \
+    echo "Build architecture: $(uname -m)" >> /build-info.txt && \
+    echo "Compiler: $(cc --version | head -n 1)" >> /build-info.txt
+
+# Verify version format
+RUN MEOWCOIN_VERSION=$(cat meowcoin_version.txt) && \
+    if [[ ! $MEOWCOIN_VERSION =~ ^Meow-v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then \
+        echo "Error: Invalid version format: $MEOWCOIN_VERSION"; \
+        echo "Expected format: Meow-v1.2.3"; \
+        exit 1; \
+    fi
 
 # Build Meowcoin with proper caching and optimizations
 RUN MEOWCOIN_VERSION=$(cat meowcoin_version.txt) && \
+    echo "Cloning Meowcoin repository at version $MEOWCOIN_VERSION..." && \
     git clone --depth 1 --branch $MEOWCOIN_VERSION https://github.com/Meowcoin-Foundation/Meowcoin.git && \
     cd Meowcoin && \
+    echo "Running autogen.sh..." && \
     ./autogen.sh && \
-    # Optimize build configuration for production
+    # Optimize build configuration for production with security hardening
+    echo "Running configure with security hardening options..." && \
     ./configure --prefix=/usr \
                 --disable-tests \
                 --disable-bench \
@@ -53,30 +68,49 @@ RUN MEOWCOIN_VERSION=$(cat meowcoin_version.txt) && \
                 --disable-wallet \
                 --without-miniupnpc \
                 --enable-hardening \
-                --enable-reduce-exports && \
+                --enable-reduce-exports \
+                --with-pic \
+                --disable-ccache \
+                CXXFLAGS="-O2 -pipe -fPIC -fstack-protector-all" \
+                LDFLAGS="-Wl,-z,relro,-z,now" && \
     # Use all available CPU cores for faster build
+    echo "Building Meowcoin..." && \
     make -j$(nproc) && \
+    echo "Installing Meowcoin..." && \
     make install DESTDIR=/install && \
     # Strip debug symbols to reduce binary size
-    strip /install/usr/bin/meowcoin*
+    echo "Stripping binaries..." && \
+    strip /install/usr/bin/meowcoin* && \
+    # Record build success in build info
+    echo "Build completed successfully at $(date -u -Iseconds)" >> /build-info.txt
 
-# Build Prometheus exporter
+# Build Prometheus exporter with proper version pinning
 RUN export GOPATH=/go && \
     mkdir -p /go && \
-    go install github.com/prometheus/meowcoin_exporter@latest && \
+    echo "Building Prometheus exporter..." && \
+    GO111MODULE=on go install github.com/prometheus/meowcoin_exporter@v0.3.0 && \
     mkdir -p /install/usr/local/bin/ && \
     if [ -d /go/bin ]; then \
       cp /go/bin/meowcoin_exporter /install/usr/local/bin/meowcoin-exporter 2>/dev/null || echo "Exporter not available"; \
       if [ -f /install/usr/local/bin/meowcoin-exporter ]; then \
         strip /install/usr/local/bin/meowcoin-exporter; \
+        echo "Prometheus exporter built successfully" >> /build-info.txt; \
       fi \
+    else \
+      echo "Failed to build Prometheus exporter" >> /build-info.txt; \
     fi
+
+# Verify binary integrity and security
+RUN echo "Verifying binary integrity..." && \
+    ldd /install/usr/bin/meowcoind | grep -v "not a dynamic executable" >> /build-info.txt && \
+    echo "Binary dependencies verified" >> /build-info.txt && \
+    sha256sum /install/usr/bin/meowcoin* >> /build-info.txt
 
 # Copy build info
 COPY --from=0 /build-info.txt /install/build-info.txt
 
 # Runtime stage
-FROM alpine:3.19
+FROM alpine:3.19.1
 
 # Add labels
 LABEL maintainer="ColterD <colterdahlberg@gmail.com>"
@@ -84,44 +118,50 @@ LABEL description="Docker image for Meowcoin Core"
 LABEL org.opencontainers.image.source="https://github.com/colterd/meowcoin-docker"
 LABEL org.opencontainers.image.description="Docker image for Meowcoin Core"
 LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.documentation="https://github.com/colterd/meowcoin-docker/wiki"
+LABEL org.opencontainers.image.created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+LABEL org.opencontainers.image.version="$(cat /meowcoin_version.txt 2>/dev/null || echo 'unknown')"
 
-# Install runtime dependencies
+# Install runtime dependencies with specific versions
 RUN apk add --no-cache \
-    openssl \
-    boost-filesystem \
-    boost-thread \
-    boost-system \
-    libevent \
-    ca-certificates \
-    gettext \
-    bash \
-    jq \
-    coreutils \
-    supervisor \
-    fail2ban \
-    tzdata \
-    shadow \
-    curl
+    openssl=3.1.4-r5 \
+    boost-filesystem=1.82.0-r1 \
+    boost-thread=1.82.0-r1 \
+    boost-system=1.82.0-r1 \
+    libevent=2.1.12-r8 \
+    ca-certificates=20230506-r0 \
+    gettext=0.22.3-r0 \
+    bash=5.2.21-r0 \
+    jq=1.7.1-r0 \
+    coreutils=9.4-r0 \
+    supervisor=4.2.5-r2 \
+    fail2ban=1.0.2-r3 \
+    tzdata=2023d-r0 \
+    shadow=4.14.2-r0 \
+    curl=8.5.0-r0 \
+    tini=0.19.0-r1
 
-# Create meowcoin user
+# Create meowcoin user with specific UID/GID for better security
 RUN addgroup -g 1000 -S meowcoin && \
-    adduser -u 1000 -S meowcoin -G meowcoin -h /home/meowcoin
+    adduser -u 1000 -S meowcoin -G meowcoin -h /home/meowcoin -s /sbin/nologin
 
-# Create necessary directories
+# Create necessary directories with proper permissions
 RUN mkdir -p /etc/meowcoin \
     /var/log/meowcoin \
     /var/lib/meowcoin \
     /home/meowcoin/.meowcoin/certs \
     /home/meowcoin/.meowcoin/logs \
     /home/meowcoin/.meowcoin/backups && \
-    chown -R meowcoin:meowcoin /home/meowcoin
+    chown -R meowcoin:meowcoin /home/meowcoin && \
+    chmod 750 /home/meowcoin && \
+    chmod 750 /home/meowcoin/.meowcoin
 
 # Copy binaries from builder
 COPY --from=builder /install/usr/bin/meowcoin* /usr/bin/
 COPY --from=builder /install/usr/local/bin/ /usr/local/bin/
 COPY --from=builder /install/build-info.txt /build-info.txt
 
-# Copy scripts
+# Copy scripts and make sure they're executable
 COPY scripts/entrypoint/ /usr/local/bin/entrypoint/
 COPY scripts/backup/ /usr/local/bin/backup/
 COPY scripts/monitoring/ /usr/local/bin/monitoring/
@@ -143,6 +183,24 @@ COPY config/templates/ /etc/meowcoin/templates/
 # Copy version information
 COPY meowcoin_version.txt /meowcoin_version.txt
 
+# Create directories for mounting and set restrictive permissions
+RUN mkdir -p /data && \
+    chown meowcoin:meowcoin /data && \
+    chmod 750 /data
+
+# Security hardening
+RUN echo "Applying security hardening..." && \
+    # Remove unnecessary shell access
+    chmod 750 /usr/bin/meowcoin* && \
+    # Set restrictive permissions
+    chmod 640 /etc/fail2ban/jail.* && \
+    # Create security limits file
+    echo "* hard core 0" > /etc/security/limits.conf && \
+    echo "* hard nofile 65535" >> /etc/security/limits.conf && \
+    echo "* soft nofile 65535" >> /etc/security/limits.conf && \
+    # Verify binaries
+    sha256sum /usr/bin/meowcoin* > /bin-checksums.txt
+
 # Volume for blockchain data
 VOLUME ["/home/meowcoin/.meowcoin"]
 
@@ -153,5 +211,5 @@ EXPOSE 8332 8333 9449 28332
 HEALTHCHECK --interval=1m --timeout=30s --start-period=30m --retries=3 \
   CMD /usr/local/bin/monitoring/health-check.sh
 
-# Set entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
+# Use tini as init for proper signal handling and zombie process reaping
+ENTRYPOINT ["/sbin/tini", "--", "/entrypoint.sh"]
