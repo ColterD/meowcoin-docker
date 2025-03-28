@@ -1,4 +1,3 @@
-# scripts/entrypoint/plugins.sh
 #!/bin/bash
 
 # Plugin system for Meowcoin Docker
@@ -30,6 +29,40 @@ function init_plugin_system() {
   load_plugins
 }
 
+# Validate a plugin for security issues
+function validate_plugin() {
+  local PLUGIN_PATH="$1"
+  
+  echo "[$(date -Iseconds)] Validating plugin: $(basename $PLUGIN_PATH)" | tee -a $LOG_FILE
+  
+  # Check for suspicious commands
+  if grep -q "curl\|wget\|nc\|ncat\|telnet" "$PLUGIN_PATH"; then
+    echo "[$(date -Iseconds)] WARNING: Plugin contains networking commands, potential security risk" | tee -a $LOG_FILE
+    return 1
+  fi
+  
+  # Check for suspicious shell escapes
+  if grep -q "eval\|exec [^;]*;" "$PLUGIN_PATH"; then
+    echo "[$(date -Iseconds)] WARNING: Plugin contains potentially unsafe evaluation" | tee -a $LOG_FILE
+    return 1
+  fi
+  
+  # Check for excessive privileges
+  if grep -q "sudo\|su " "$PLUGIN_PATH"; then
+    echo "[$(date -Iseconds)] WARNING: Plugin attempts to escalate privileges" | tee -a $LOG_FILE
+    return 1
+  fi
+  
+  # Check for system file access outside the allowed paths
+  if grep -q "/etc/\|/var/\|/root/\|/boot/" "$PLUGIN_PATH" | grep -v "/etc/meowcoin\|/var/log/meowcoin"; then
+    echo "[$(date -Iseconds)] WARNING: Plugin attempts to access restricted system files" | tee -a $LOG_FILE
+    return 1
+  fi
+  
+  echo "[$(date -Iseconds)] Plugin validation passed: $(basename $PLUGIN_PATH)" | tee -a $LOG_FILE
+  return 0
+}
+
 # Load all plugins from the plugin directory
 function load_plugins() {
   echo "[$(date -Iseconds)] Loading plugins from $PLUGIN_DIR" | tee -a $LOG_FILE
@@ -45,12 +78,21 @@ function load_plugins() {
   # Source each plugin
   for PLUGIN in "$PLUGIN_DIR"/*.sh; do
     if [ -f "$PLUGIN" ]; then
-      echo "[$(date -Iseconds)] Loading plugin: $(basename $PLUGIN)" | tee -a $LOG_FILE
+      echo "[$(date -Iseconds)] Processing plugin: $(basename $PLUGIN)" | tee -a $LOG_FILE
       
       # Check if plugin has execute permission
       if [ ! -x "$PLUGIN" ]; then
         echo "[$(date -Iseconds)] Adding execute permission to plugin" | tee -a $LOG_FILE
         chmod +x "$PLUGIN"
+      fi
+      
+      # Validate plugin for security
+      if ! validate_plugin "$PLUGIN"; then
+        echo "[$(date -Iseconds)] Skipping plugin due to security concerns: $(basename $PLUGIN)" | tee -a $LOG_FILE
+        # Rename the plugin to prevent future loading
+        mv "$PLUGIN" "${PLUGIN}.disabled"
+        echo "[$(date -Iseconds)] Plugin has been disabled: $(basename $PLUGIN).disabled" | tee -a $LOG_FILE
+        continue
       fi
       
       # Create plugin environment
@@ -114,15 +156,23 @@ function meowcoin_rpc() {
   shift
   meowcoin-cli -conf="\$(meowcoin_config)" "\$CMD" "\$@"
 }
+
+# Execute a command with timeout and restricted environment
+function plugin_exec() {
+  timeout 10s \$@
+}
 EOF
       
       # Source the plugin environment
       source "$PLUGIN_ENV"
       
-      # Source the plugin
-      source "$PLUGIN"
-      
-      echo "[$(date -Iseconds)] Plugin loaded: $PLUGIN_NAME" | tee -a $LOG_FILE
+      # Source the plugin with error handling
+      {
+        source "$PLUGIN"
+        echo "[$(date -Iseconds)] Plugin loaded: $PLUGIN_NAME" | tee -a $LOG_FILE
+      } || {
+        echo "[$(date -Iseconds)] ERROR: Failed to load plugin: $PLUGIN_NAME" | tee -a $LOG_FILE
+      }
     fi
   done
 }
@@ -137,6 +187,12 @@ function execute_hooks() {
   fi
   
   echo "[$(date -Iseconds)] Executing hooks: $HOOK_NAME" | tee -a $LOG_FILE
+  
+  # Check if hook registry exists
+  if [ ! -f "$HOOK_REGISTRY" ]; then
+    echo "[$(date -Iseconds)] Hook registry not found: $HOOK_REGISTRY" | tee -a $LOG_FILE
+    return 1
+  fi
   
   # Get hooks for this hook name
   local HOOKS=$(cat $HOOK_REGISTRY | jq -r --arg hook "$HOOK_NAME" '.[$hook] // [] | .[]')
@@ -158,9 +214,18 @@ function execute_hooks() {
     if [ -f "$PLUGIN_ENV" ]; then
       source "$PLUGIN_ENV"
       
-      # Execute function
+      # Execute function with timeout for safety
       if type "$FUNCTION" &>/dev/null; then
-        "$FUNCTION"
+        (
+          # Execute in subshell with timeout for safety
+          timeout 30s "$FUNCTION" 2>&1 | tee -a $LOG_FILE
+        )
+        HOOK_STATUS=$?
+        if [ $HOOK_STATUS -eq 124 ]; then
+          echo "[$(date -Iseconds)] WARNING: Hook execution timed out: $PLUGIN.$FUNCTION" | tee -a $LOG_FILE
+        elif [ $HOOK_STATUS -ne 0 ]; then
+          echo "[$(date -Iseconds)] WARNING: Hook execution failed: $PLUGIN.$FUNCTION (status $HOOK_STATUS)" | tee -a $LOG_FILE
+        fi
       else
         echo "[$(date -Iseconds)] ERROR: Function not found: $FUNCTION" | tee -a $LOG_FILE
       fi

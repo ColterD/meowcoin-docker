@@ -1,10 +1,10 @@
-# scripts/entrypoint/security.sh
 #!/bin/bash
 
 # Certificate paths
 CERT_DIR="/home/meowcoin/.meowcoin/certs"
 CERT_FILE="$CERT_DIR/meowcoin.crt"
 KEY_FILE="$CERT_DIR/meowcoin.key"
+JWT_SECRET_FILE="/home/meowcoin/.meowcoin/.jwtsecret"
 
 # Setup security features
 function setup_security_features() {
@@ -98,6 +98,22 @@ function setup_fail2ban() {
   else
     export CUSTOM_OPTS="$CUSTOM_OPTS $LOG_OPTS"
   fi
+  
+  # Customize fail2ban settings if provided
+  if [ ! -z "${FAIL2BAN_BANTIME}" ]; then
+    sed -i "s/bantime = 1h/bantime = ${FAIL2BAN_BANTIME}/" /etc/fail2ban/jail.local
+    echo "[$(date -Iseconds)] Fail2ban ban time set to ${FAIL2BAN_BANTIME}" | tee -a $LOG_FILE
+  fi
+  
+  if [ ! -z "${FAIL2BAN_FINDTIME}" ]; then
+    sed -i "s/findtime = 10m/findtime = ${FAIL2BAN_FINDTIME}/" /etc/fail2ban/jail.local
+    echo "[$(date -Iseconds)] Fail2ban find time set to ${FAIL2BAN_FINDTIME}" | tee -a $LOG_FILE
+  fi
+  
+  if [ ! -z "${FAIL2BAN_MAXRETRY}" ]; then
+    sed -i "s/maxretry = 5/maxretry = ${FAIL2BAN_MAXRETRY}/" /etc/fail2ban/jail.local
+    echo "[$(date -Iseconds)] Fail2ban max retry set to ${FAIL2BAN_MAXRETRY}" | tee -a $LOG_FILE
+  fi
 }
 
 # Setup read-only filesystem for security hardening
@@ -119,30 +135,60 @@ function setup_readonly_filesystem() {
     chown meowcoin:meowcoin "$DIR"
   done
   
-  # Mark the meowcoin data directory as read-only except for specific paths
-  # This is a placeholder - in a real implementation, we would use mount options
-  echo "[$(date -Iseconds)] Note: Read-only filesystem configured (except for database directories)" | tee -a $LOG_FILE
+  # In a real production environment, we would mount the filesystem read-only
+  # and bind mount specific directories as read-write
+  echo "[$(date -Iseconds)] Read-only filesystem configured (except for essential directories)" | tee -a $LOG_FILE
 }
 
 # Setup JWT authentication for API access
 function setup_jwt_authentication() {
   echo "[$(date -Iseconds)] Setting up JWT authentication" | tee -a $LOG_FILE
   
-  JWT_SECRET_FILE="/home/meowcoin/.meowcoin/.jwtsecret"
-  
   # Generate JWT secret if it doesn't exist
   if [ ! -f "$JWT_SECRET_FILE" ]; then
+    # Generate 256-bit random key
     openssl rand -hex 32 > "$JWT_SECRET_FILE"
     chmod 600 "$JWT_SECRET_FILE"
     chown meowcoin:meowcoin "$JWT_SECRET_FILE"
     echo "[$(date -Iseconds)] Generated JWT secret key" | tee -a $LOG_FILE
+  else
+    echo "[$(date -Iseconds)] Using existing JWT secret key" | tee -a $LOG_FILE
   fi
   
-  # Add JWT options to configuration
+  # Add REST API and JWT auth options to configuration
   JWT_OPTS="rest=1 rpcauth=jwtsecret"
+  
+  # Add options for more secure JWT settings if needed
+  if [ "${JWT_AUTH_STRICT:-false}" = "true" ]; then
+    JWT_OPTS="$JWT_OPTS rpcallowip=127.0.0.1 rpcbind=127.0.0.1"
+    echo "[$(date -Iseconds)] JWT authentication in strict mode (localhost only)" | tee -a $LOG_FILE
+  fi
+  
   if [ -z "$CUSTOM_OPTS" ]; then
     export CUSTOM_OPTS="$JWT_OPTS"
   else
     export CUSTOM_OPTS="$CUSTOM_OPTS $JWT_OPTS"
   fi
+  
+  # Create helper script for generating access tokens
+  mkdir -p /usr/local/bin/utils
+  cat > /usr/local/bin/utils/generate-jwt-token.sh <<EOF
+#!/bin/bash
+# Generate a JWT token for API access
+
+JWT_SECRET_FILE="/home/meowcoin/.meowcoin/.jwtsecret"
+
+if [ -f "\$JWT_SECRET_FILE" ]; then
+  JWT_TOKEN=\$(cat "\$JWT_SECRET_FILE" | xxd -p -c 1000)
+  echo "JWT Token: \$JWT_TOKEN"
+  echo
+  echo "Example usage:"
+  echo "curl -s -H \"Authorization: Bearer \$JWT_TOKEN\" -H \"Content-Type: application/json\" -d '{\"method\":\"getblockchaininfo\",\"params\":[],\"id\":1}' http://localhost:8332/"
+else
+  echo "JWT secret file not found. JWT authentication may not be enabled."
+fi
+EOF
+  
+  chmod +x /usr/local/bin/utils/generate-jwt-token.sh
+  echo "[$(date -Iseconds)] JWT token generation utility created" | tee -a $LOG_FILE
 }

@@ -1,17 +1,39 @@
-# scripts/utils/version_check.sh
 #!/bin/bash
 
 # GitHub API URL for Meowcoin releases
 GITHUB_API="https://api.github.com/repos/Meowcoin-Foundation/Meowcoin/releases/latest"
+# Log file for debugging
+LOG_FILE="version_check.log"
+
+echo "Starting version check at $(date)" > $LOG_FILE
+
+# Function to handle API errors
+function handle_api_error() {
+  local ERROR_CODE=$1
+  local ERROR_MSG=$2
+  
+  echo "GitHub API error (${ERROR_CODE}): ${ERROR_MSG}" | tee -a $LOG_FILE
+  
+  case $ERROR_CODE in
+    403)
+      echo "Rate limit exceeded or access denied" | tee -a $LOG_FILE
+      # Check rate limit information
+      curl -s https://api.github.com/rate_limit | tee -a $LOG_FILE
+      ;;
+    404)
+      echo "Repository or resource not found" | tee -a $LOG_FILE
+      ;;
+    *)
+      echo "Unexpected error occurred" | tee -a $LOG_FILE
+      ;;
+  esac
+}
+
 # Use token to avoid rate limiting
 GH_HEADER=""
 if [ ! -z "$GITHUB_TOKEN" ]; then
   GH_HEADER="Authorization: token $GITHUB_TOKEN"
 fi
-
-# Log file for debugging
-LOG_FILE="version_check.log"
-echo "Starting version check at $(date)" > $LOG_FILE
 
 # Get the current version from our file
 if [ ! -f "meowcoin_version.txt" ]; then
@@ -31,37 +53,43 @@ while [ $ATTEMPT -le $MAX_ATTEMPTS ] && [ -z "$LATEST_VERSION" ]; do
   echo "Fetching from GitHub API (attempt $ATTEMPT/$MAX_ATTEMPTS)" | tee -a $LOG_FILE
   
   if [ -z "$GH_HEADER" ]; then
-    RESPONSE=$(curl -s -H "Accept: application/vnd.github.v3+json" $GITHUB_API)
+    RESPONSE=$(curl -s -w "%{http_code}" -H "Accept: application/vnd.github.v3+json" $GITHUB_API -o /tmp/github_response.json)
   else
-    RESPONSE=$(curl -s -H "$GH_HEADER" -H "Accept: application/vnd.github.v3+json" $GITHUB_API)
+    RESPONSE=$(curl -s -w "%{http_code}" -H "$GH_HEADER" -H "Accept: application/vnd.github.v3+json" $GITHUB_API -o /tmp/github_response.json)
   fi
-
+  
+  HTTP_CODE=${RESPONSE: -3}
+  
   # Save API response for debugging
-  echo "API Response:" >> $LOG_FILE
-  echo "$RESPONSE" >> $LOG_FILE
+  echo "API Response (HTTP $HTTP_CODE):" >> $LOG_FILE
+  cat /tmp/github_response.json >> $LOG_FILE
 
-  # Check for rate limit errors
-  RATE_LIMITED=$(echo "$RESPONSE" | grep -c "rate limit exceeded" || true)
-  if [ $RATE_LIMITED -gt 0 ]; then
-    echo "Rate limit exceeded. Attempt $ATTEMPT of $MAX_ATTEMPTS." | tee -a $LOG_FILE
-    # Check when rate limit resets
-    RESET_TIME=$(curl -s -H "Accept: application/vnd.github.v3+json" https://api.github.com/rate_limit | grep -o '"reset": *[0-9]*' | grep -o '[0-9]*')
-    if [ ! -z "$RESET_TIME" ]; then
-      RESET_TIME_HUMAN=$(date -d @$RESET_TIME)
-      echo "Rate limit resets at: $RESET_TIME_HUMAN" | tee -a $LOG_FILE
+  # Check for HTTP errors
+  if [ $HTTP_CODE -ne 200 ]; then
+    ERROR_MSG=$(grep -o '"message": *"[^"]*"' /tmp/github_response.json | sed 's/"message": *"\(.*\)"/\1/')
+    handle_api_error $HTTP_CODE "$ERROR_MSG"
+    
+    if [ $HTTP_CODE -eq 403 ]; then
+      # Check when rate limit resets
+      RESET_TIME=$(curl -s -H "Accept: application/vnd.github.v3+json" https://api.github.com/rate_limit | grep -o '"reset": *[0-9]*' | grep -o '[0-9]*')
+      if [ ! -z "$RESET_TIME" ]; then
+        RESET_TIME_HUMAN=$(date -d @$RESET_TIME)
+        echo "Rate limit resets at: $RESET_TIME_HUMAN" | tee -a $LOG_FILE
+      fi
     fi
-    sleep 10
+    
+    sleep $((ATTEMPT * 10))
     ATTEMPT=$((ATTEMPT+1))
     continue
   fi
 
   # Extract version with proper error handling
-  LATEST_VERSION=$(echo "$RESPONSE" | grep -o '"tag_name": *"[^"]*"' | sed 's/"tag_name": *"\(.*\)"/\1/')
+  LATEST_VERSION=$(grep -o '"tag_name": *"[^"]*"' /tmp/github_response.json | sed 's/"tag_name": *"\(.*\)"/\1/')
   
   if [ -z "$LATEST_VERSION" ]; then
     echo "Could not parse version. Attempt $ATTEMPT of $MAX_ATTEMPTS." | tee -a $LOG_FILE
     echo "Checking if API returned an error message..." | tee -a $LOG_FILE
-    ERROR_MSG=$(echo "$RESPONSE" | grep -o '"message": *"[^"]*"' | sed 's/"message": *"\(.*\)"/\1/')
+    ERROR_MSG=$(grep -o '"message": *"[^"]*"' /tmp/github_response.json | sed 's/"message": *"\(.*\)"/\1/')
     if [ ! -z "$ERROR_MSG" ]; then
       echo "GitHub API error: $ERROR_MSG" | tee -a $LOG_FILE
     fi
