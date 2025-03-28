@@ -1,36 +1,46 @@
+# docker-compose.yml
+
 services:
   meowcoin:
-    image: colterd/meowcoin-docker:latest
+    image: colterd/meowcoin-docker:${MEOWCOIN_VERSION:-2.0.5}
     container_name: meowcoin-node
     volumes:
       - meowcoin-data:/home/meowcoin/.meowcoin
     ports:
       - "127.0.0.1:8332:8332"  # Only expose RPC locally
       - "8333:8333"  # P2P can be public
-      # - "127.0.0.1:9449:9449"  # Prometheus metrics (uncomment if enabled)
     restart: unless-stopped
     environment:
       # CORE SETTINGS
-      # RPC settings
       - RPC_BIND=127.0.0.1
       - RPC_ALLOWIP=127.0.0.1
-      - MEOWCOIN_OPTS="-printtoconsole"
       
-      # OPTIONAL FEATURES - All disabled by default
-      # Security features
+      # RESOURCE SETTINGS (optimized automatically if not set)
+      #- DBCACHE=1024
+      #- MAX_CONNECTIONS=50
+      #- MAXMEMPOOL=300
+      
+      # SECURITY FEATURES
       - ENABLE_SSL=false
-      - ENABLE_FAIL2BAN=false
-      
-      # Monitoring features
-      - ENABLE_METRICS=false
-      
-      # Backup features
-      - ENABLE_BACKUPS=false
-      - BACKUP_SCHEDULE="0 0 * * *"
-      
-      # Advanced security (requires additional setup)
+      - ENABLE_FAIL2BAN=true
       - ENABLE_JWT_AUTH=false
       - ENABLE_READONLY_FS=false
+      
+      # MONITORING FEATURES
+      - ENABLE_METRICS=false
+      - TZ=UTC
+      
+      # BACKUP FEATURES
+      - ENABLE_BACKUPS=true
+      - BACKUP_SCHEDULE="0 0 * * *"  # Daily at midnight
+      - MAX_BACKUPS=7
+      - BACKUP_COMPRESSION_LEVEL=6
+      - BACKUP_REMOTE_ENABLED=false
+      #- BACKUP_REMOTE_TYPE=s3
+      #- BACKUP_S3_BUCKET=my-meowcoin-backups
+      
+      # CUSTOM OPTIONS
+      - CUSTOM_OPTS="rpcthreads=8"
     
     # Resource limits
     deploy:
@@ -41,7 +51,46 @@ services:
         reservations:
           memory: 1G
           cpus: '0.5'
+    
+    # Health check (used by Docker)
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/monitoring/health-check.sh"]
+      interval: 5m
+      timeout: 30s
+      retries: 3
+      start_period: 30m
+
+  # Optional Prometheus monitoring stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: meowcoin-prometheus
+    volumes:
+      - ./config/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      - meowcoin
+    profiles: ["monitoring"]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: meowcoin-grafana
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+    profiles: ["monitoring"]
+    restart: unless-stopped
 
 volumes:
   meowcoin-data:
     name: meowcoin-data
+  prometheus-data:
+    name: meowcoin-prometheus-data
+  grafana-data:
+    name: meowcoin-grafana-data

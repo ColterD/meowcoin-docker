@@ -1,0 +1,31 @@
+# config/templates/meowcoin.conf.template
+# Node Configuration
+server=1
+listen=1
+txindex=1
+
+# Network Settings
+rpcbind=${RPC_BIND:-127.0.0.1}
+rpcallowip=${RPC_ALLOWIP:-127.0.0.1}
+
+# RPC Authentication
+rpcuser=${RPC_USER}
+rpcpassword=${RPC_PASSWORD}
+
+# Security Settings
+rpcthreads=${RPC_THREADS:-4}
+rpctimeout=${RPC_TIMEOUT:-30}
+rpcworkqueue=${RPC_WORKQUEUE:-16}
+
+# Performance Settings (dynamically optimized if not set)
+dbcache=${DBCACHE:-450}
+maxorphantx=${MAX_ORPHAN_TX:-10}
+maxmempool=${MAXMEMPOOL:-300}
+maxconnections=${MAX_CONNECTIONS:-40}
+
+# Console Output Settings
+printtoconsole=1
+logtimestamps=1
+
+# Custom Options
+${CUSTOM_OPTS}

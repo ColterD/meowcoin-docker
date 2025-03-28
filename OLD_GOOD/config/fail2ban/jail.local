@@ -1,0 +1,13 @@
+[DEFAULT]
+bantime = 1h
+findtime = 10m
+maxretry = 5
+banaction = iptables-allports
+chain = DOCKER-USER
+
+[meowcoin-rpc]
+enabled = true
+filter = meowcoin-rpc
+logpath = /home/meowcoin/.meowcoin/logs/debug.log
+maxretry = 3
+bantime = 3600
