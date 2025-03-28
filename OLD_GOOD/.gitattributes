@@ -1,9 +1,0 @@
-# Auto detect text files and perform LF normalization
-* text=auto
-
-# Declare shell scripts should use LF
-*.sh text eol=lf
-
-# Docker files should use LF
-Dockerfile text eol=lf
-docker-compose.yml text eol=lf
