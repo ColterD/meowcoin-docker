@@ -1,8 +1,9 @@
 # Build stage
 FROM ubuntu:22.04 AS builder
 
-# Set ARG for BuildKit cache control
+# Set ARG for BuildKit cache control and version
 ARG BUILDKIT_INLINE_CACHE=1
+ARG MEOWCOIN_VERSION
 
 # Add labels for better maintainability
 LABEL org.opencontainers.image.source="https://github.com/ColterD/meowcoin-docker"
@@ -23,17 +24,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR /build
 
-# Copy version file
+# Copy version file or use ARG
 COPY meowcoin_version.txt .
+RUN if [ -z "$MEOWCOIN_VERSION" ]; then \
+    MEOWCOIN_VERSION=$(cat meowcoin_version.txt); \
+    else echo $MEOWCOIN_VERSION > meowcoin_version.txt; \
+    fi
 
 # Build Meowcoin with proper caching
 RUN MEOWCOIN_VERSION=$(cat meowcoin_version.txt) && \
     git clone --depth 1 --branch $MEOWCOIN_VERSION https://github.com/Meowcoin-Foundation/Meowcoin.git && \
-    cd Meowcoin && \
     ./autogen.sh && \
     ./configure --prefix=/usr --disable-tests --disable-bench && \
     make -j$(nproc) && \
     make install DESTDIR=/install
+
+# Build Prometheus exporter (optional)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    golang && \
+    rm -rf /var/lib/apt/lists/* && \
+    go install github.com/prometheus/meowcoin_exporter@latest && \
+    if [ -d /root/go/bin ]; then \
+      mkdir -p /install/usr/local/bin/; \
+      cp /root/go/bin/meowcoin_exporter /install/usr/local/bin/meowcoin-exporter 2>/dev/null || echo "Exporter not available"; \
+    fi
 
 # Runtime stage
 FROM ubuntu:22.04
@@ -51,7 +65,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libboost-chrono1.74.0 \
     ca-certificates \
     gettext-base \
+    openssl \
+    cron \
+    fail2ban \
+    supervisor \
     && rm -rf /var/lib/apt/lists/*
+
+# Set up fail2ban configuration
+COPY config/fail2ban/jail.local /etc/fail2ban/jail.local
+COPY config/fail2ban/filter.d/meowcoin-rpc.conf /etc/fail2ban/filter.d/
 
 # Create meowcoin user with specific UID/GID for better security
 RUN groupadd -r meowcoin -g 1000 && \
@@ -60,19 +82,26 @@ RUN groupadd -r meowcoin -g 1000 && \
 # Copy binaries from builder
 COPY --from=builder /install/usr/bin/meowcoin* /usr/bin/
 
-# Copy default config template
-COPY config/meowcoin.conf.template /home/meowcoin/.meowcoin/meowcoin.conf.template
+# Handle Prometheus exporter (fix for the error)
+COPY --from=builder /install/usr/local/bin/ /usr/local/bin/
 
 # Copy scripts
 COPY scripts/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY scripts/backup-blockchain.sh /usr/local/bin/backup-blockchain.sh
+RUN chmod +x /entrypoint.sh && \
+    (chmod +x /usr/local/bin/backup-blockchain.sh 2>/dev/null || true)
 
-# Create healthcheck script (doesn't expose credentials in Docker inspect)
+# Copy supervisor config
+COPY config/supervisord.conf /etc/supervisor/conf.d/meowcoin.conf
+
+# Create healthcheck script
 RUN echo '#!/bin/sh \n\
 meowcoin-cli -conf=/home/meowcoin/.meowcoin/meowcoin.conf getblockchaininfo >/dev/null 2>&1 \n\
 exit $?' > /healthcheck.sh && \
-chmod +x /healthcheck.sh && \
-chown meowcoin:meowcoin /healthcheck.sh
+chmod +x /healthcheck.sh
+
+# Copy default config template
+COPY config/meowcoin.conf.template /home/meowcoin/.meowcoin/meowcoin.conf.template
 
 # Copy version information
 COPY meowcoin_version.txt /meowcoin_version.txt
@@ -81,22 +110,15 @@ COPY meowcoin_version.txt /meowcoin_version.txt
 RUN mkdir -p /home/meowcoin/.meowcoin && \
     chown -R meowcoin:meowcoin /home/meowcoin/.meowcoin
 
-# Switch to non-root user
-USER meowcoin
-WORKDIR /home/meowcoin
-
 # Volume for blockchain data
 VOLUME ["/home/meowcoin/.meowcoin"]
 
-# Expose ports
-EXPOSE 8332 8333
+# Expose ports (RPC, P2P, and optionally Prometheus metrics)
+EXPOSE 8332 8333 9449 28332
 
-# Health check using script (doesn't expose credentials)
+# Health check
 HEALTHCHECK --interval=1m --timeout=30s --start-period=30m --retries=3 \
   CMD /healthcheck.sh
 
-# Set entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
-
-# Default command if no arguments provided
-CMD ["meowcoind"]
+# Use supervisor as the entrypoint
+ENTRYPOINT ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/meowcoin.conf"]

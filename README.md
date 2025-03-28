@@ -11,7 +11,73 @@ A fully automated, secure Docker solution for running a Meowcoin node. This imag
 docker-compose up -d
 ```
 
-That's it! Your Meowcoin node is now running.
+That's it! Your Meowcoin node is now running with automatically generated secure credentials.
+
+---
+
+## Security Features
+
+- Auto-generated credentials: Secure RPC credentials are generated automatically
+- Local-only RPC: RPC interface is only exposed to localhost by default
+- Secure defaults: Safe configuration out of the box
+- Non-root execution: Container runs with limited user permissions
+- Password persistence: Generated passwords are stored in the volume for reuse
+- Optional fail2ban protection: Ban IPs that attempt to brute force RPC
+- Optional SSL/TLS: Automatic SSL certificate generation
+
+---
+
+## Advanced Features
+
+This container includes several optional advanced features that can be enabled via environment variables:
+
+### SSL/TLS Encryption
+Auto-generate SSL certificates for secure RPC communication:
+
+```yaml
+environment:
+  - ENABLE_SSL=true
+```
+
+### Fail2ban Protection
+Enable fail2ban to automatically block IPs that attempt to brute force RPC authentication:
+
+```yaml
+environment:
+  - ENABLE_FAIL2BAN=true
+```
+
+### Prometheus Metrics
+Export node metrics for monitoring with Prometheus:
+
+```yaml
+environment:
+  - ENABLE_METRICS=true
+ports:
+  - "127.0.0.1:9449:9449"  # Expose metrics port
+```
+
+### Automatic Backups
+Schedule regular backups of wallet data:
+
+```yaml
+environment:
+  - ENABLE_BACKUPS=true
+  - BACKUP_SCHEDULE="0 0 * * *"  # Daily at midnight (cron format)
+```
+
+### Resource Limits
+Control container resource usage:
+
+```yaml
+deploy:
+  resources:
+    limits:
+      memory: 4G
+      cpus: '2'
+    reservations:
+      memory: 1G
+```
 
 ---
 
@@ -20,8 +86,9 @@ That's it! Your Meowcoin node is now running.
 ### Default Ports
 The default configuration exposes these ports:
 
-- `8332`: RPC port
+- `8332`: RPC port (bound to localhost only)
 - `8333`: P2P port
+- `9449`: Prometheus metrics (optional)
 
 Blockchain data is stored in a Docker volume for persistence.
 
@@ -30,14 +97,14 @@ To use custom Meowcoin settings, modify the environment variables in `docker-com
 
 ```yaml
 environment:
-  - RPC_USER=your_custom_username
-  - RPC_PASSWORD=your_strong_password
-  - RPC_BIND=127.0.0.1  # Only allow local connections
+  - RPC_USER=your_custom_username  # Optional
+  - RPC_PASSWORD=your_strong_password  # Optional - auto-generated if not provided
+  - RPC_BIND=127.0.0.1  # Only bind to localhost inside container
   - RPC_ALLOWIP=127.0.0.1  # Only allow local connections
-  - MEOWCOIN_OPTS="-printtoconsole"
+  - MEOWCOIN_OPTS="dbcache=1024 maxconnections=50"  # Additional options
 ```
 
-> **IMPORTANT**: Always change the default RPC credentials for production use.
+**IMPORTANT**: If you specify your own RPC credentials, use strong, unique credentials.
 
 ---
 
@@ -48,19 +115,14 @@ environment:
 Use the following commands to interact with your Meowcoin node:
 
 ```bash
-# Example: Get blockchain info
-docker exec meowcoin-node meowcoin-cli -rpcuser=meowcoin -rpcpassword=changeme getblockchaininfo
+# Get the auto-generated password
+docker exec meowcoin-node cat /home/meowcoin/.meowcoin/.rpcpassword
 
-# Example: Get wallet info
-docker exec meowcoin-node meowcoin-cli -rpcuser=meowcoin -rpcpassword=changeme getwalletinfo
-```
+# Example: Get blockchain info (replace PASSWORD with your password)
+docker exec meowcoin-node meowcoin-cli -rpcuser=meowcoin -rpcpassword=PASSWORD getblockchaininfo
 
-### Viewing Generated RPC Password
-
-If you didn't specify an RPC password, one was generated for you. View it with:
-
-```bash
-docker logs meowcoin-node | grep "Generated RPC password:"
+# Example: Get wallet info (replace PASSWORD with your password)
+docker exec meowcoin-node meowcoin-cli -rpcuser=meowcoin -rpcpassword=PASSWORD getwalletinfo
 ```
 
 ---
@@ -78,27 +140,7 @@ cd meowcoin-docker
 docker build -t meowcoin-docker:local .
 
 # Run with local image
-docker-compose -f docker-compose.local.yml up -d
-```
-
----
-
-## SSL/TLS Configuration
-
-For secure RPC communication, create an SSL certificate and update your configuration:
-
-```bash
-# Generate self-signed certificate
-openssl req -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out meowcoin.crt -keyout meowcoin.key
-
-# Add to docker-compose.yml volumes:
-volumes:
-  - ./meowcoin.crt:/home/meowcoin/.meowcoin/meowcoin.crt
-  - ./meowcoin.key:/home/meowcoin/.meowcoin/meowcoin.key
-
-# Add to environment variables:
-environment:
-  - CUSTOM_OPTS="rpcssl=1 rpcsslcertificatechainfile=/home/meowcoin/.meowcoin/meowcoin.crt rpcsslprivatekeyfile=/home/meowcoin/.meowcoin/meowcoin.key"
+docker run -d --name meowcoin-node -v meowcoin-data:/home/meowcoin/.meowcoin -p 127.0.0.1:8332:8332 -p 8333:8333 meowcoin-docker:local
 ```
 
 ---
@@ -120,11 +162,17 @@ docker volume rm meowcoin-data
 docker-compose up -d
 ```
 
-**RPC connection issues?**
+### RPC connection issues?
+- Verify RPC credentials with: `docker exec meowcoin-node cat /home/meowcoin/.meowcoin/.rpcpassword`
+- Check RPC bind address and allowip settings
+- Ensure ports are not blocked by firewall
 
-1. Verify RPC credentials are correct
-2. Check RPC bind address and allowip settings
-3. Ensure ports are not blocked by firewall
+### SSL issues?
+
+Check if certificates were generated properly:
+```bash
+docker exec meowcoin-node ls -la /home/meowcoin/.meowcoin/certs/
+```
 
 ---
 

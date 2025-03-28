@@ -11,7 +11,18 @@ rpcallowip=${RPC_ALLOWIP:-127.0.0.1}
 rpcuser=${RPC_USER}
 rpcpassword=${RPC_PASSWORD}
 
-# Settings
+# Security Settings
+rpcthreads=4
+rpctimeout=30
+rpcworkqueue=16
+
+# Performance Settings
+dbcache=450
+maxorphantx=10
+maxmempool=300
+maxconnections=40
+
+# Console output Settings
 printtoconsole=1
 logtimestamps=1
 
