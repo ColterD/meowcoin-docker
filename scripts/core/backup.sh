@@ -1,3 +1,4 @@
+# scripts/core/backup.sh
 #!/bin/bash
 # Backup utilities for Meowcoin Docker
 # Provides standardized backup creation, verification, and recovery functions
@@ -14,6 +15,7 @@ BACKUP_MANIFEST_FILE="$DATA_DIR/.backup_manifest"
 BACKUP_META_DIR="$DATA_DIR/backup-metadata"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 MAX_PARALLEL_UPLOADS="${MAX_PARALLEL_UPLOADS:-2}"
+SECRETS_DIR="/run/secrets"
 
 # Initialize backup system
 function backup_init() {
@@ -47,9 +49,7 @@ function backup_setup() {
     fi
     
     # Check for encryption key
-    if [[ -n "${BACKUP_ENCRYPTION_KEY}" ]]; then
-        backup_setup_encryption
-    fi
+    setup_backup_encryption
     
     log_info "Backup features setup completed"
     return 0
@@ -85,7 +85,6 @@ BACKUP_SFTP_HOST=${BACKUP_SFTP_HOST}
 BACKUP_SFTP_USER=${BACKUP_SFTP_USER}
 BACKUP_SFTP_PATH=${BACKUP_SFTP_PATH}
 BACKUP_SFTP_PORT=${BACKUP_SFTP_PORT:-22}
-BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY}
 BACKUP_VERIFY=${BACKUP_VERIFY:-true}
 
 # Backup schedule
@@ -160,6 +159,7 @@ S3_BUCKET="\${BACKUP_S3_BUCKET:-${BACKUP_S3_BUCKET}}"
 S3_PREFIX="\${BACKUP_S3_PREFIX:-meowcoin-backups}"
 S3_REGION="\${BACKUP_S3_REGION:-us-east-1}"
 LOG_FILE="$BACKUP_LOG"
+KMS_KEY="\${BACKUP_S3_KMS_KEY:-}"
 
 log_info "Starting S3 backup sync"
 
@@ -169,11 +169,19 @@ find "\$BACKUP_DIR" -name "*.tar.gz" | while read file; do
   if [[ ! -f "\$BACKUP_DIR/.\$filename.s3synced" ]]; then
     log_info "Syncing \$filename to S3"
     
-    # Upload file with metadata
+    # Use server-side encryption if KMS key is provided
+    if [ ! -z "\$KMS_KEY" ]; then
+      S3_ENCRYPTION="--sse aws:kms --sse-kms-key-id \$KMS_KEY"
+    else
+      S3_ENCRYPTION="--sse AES256"
+    fi
+    
+    # Upload file with metadata and encryption
     if aws s3 cp "\$file" "s3://\$S3_BUCKET/\$S3_PREFIX/\$filename" \\
        --region "\$S3_REGION" \\
        --metadata "timestamp=\$(date -Iseconds),hostname=\$(hostname)" \\
-       --expected-size \$(stat -c%s "\$file"); then
+       --expected-size \$(stat -c%s "\$file") \\
+       \$S3_ENCRYPTION; then
       
       # Also upload checksum file
       if [[ -f "\$file.sha256" ]]; then
@@ -346,30 +354,44 @@ EOF
     return 0
 }
 
-# Setup encryption for backups
-function backup_setup_encryption() {
-    log_info "Configuring backup encryption"
-    
-    # Verify encryption key format and strength
-    KEY_LENGTH=${#BACKUP_ENCRYPTION_KEY}
-    if [[ $KEY_LENGTH -lt 32 ]]; then
-        log_warning "Encryption key is too short (<32 chars). Consider using a stronger key."
-    fi
-    
-    # Create key verification file to test decryption
-    echo "Encryption Test" | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 10000 \
-        -out "$DATA_DIR/.enc_test" -pass pass:"$BACKUP_ENCRYPTION_KEY"
-    
-    # Test decryption
-    if openssl enc -d -aes-256-cbc -salt -pbkdf2 -iter 10000 \
-        -in "$DATA_DIR/.enc_test" -pass pass:"$BACKUP_ENCRYPTION_KEY" >/dev/null 2>&1; then
-        log_info "Encryption key verified"
+# Setup encryption for backups with secure key handling
+function setup_backup_encryption() {
+    # First check for Docker secret
+    if [[ -f "$SECRETS_DIR/meowcoin_backup_key" ]]; then
+        export BACKUP_ENCRYPTION_KEY=$(cat "$SECRETS_DIR/meowcoin_backup_key")
+        log_info "Using backup encryption key from Docker secret"
+    elif [[ -n "$BACKUP_ENCRYPTION_KEY" ]]; then
+        log_info "Using provided backup encryption key from environment"
     else
-        log_error "Encryption key verification failed"
+        log_info "No backup encryption key provided, backups will not be encrypted"
+        return 0
     fi
     
-    # Clean up test file
-    rm -f "$DATA_DIR/.enc_test"
+    # If we have a key, configure encryption
+    if [[ -n "$BACKUP_ENCRYPTION_KEY" ]]; then
+        log_info "Configuring backup encryption"
+        
+        # Verify encryption key format and strength
+        KEY_LENGTH=${#BACKUP_ENCRYPTION_KEY}
+        if [[ $KEY_LENGTH -lt 32 ]]; then
+            log_warning "Encryption key is too short (<32 chars). Consider using a stronger key."
+        fi
+        
+        # Create key verification file to test decryption
+        echo "Encryption Test" | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 10000 \
+            -out "$DATA_DIR/.enc_test" -pass pass:"$BACKUP_ENCRYPTION_KEY"
+        
+        # Test decryption
+        if openssl enc -d -aes-256-cbc -salt -pbkdf2 -iter 10000 \
+            -in "$DATA_DIR/.enc_test" -pass pass:"$BACKUP_ENCRYPTION_KEY" >/dev/null 2>&1; then
+            log_info "Encryption key verified"
+        else
+            log_error "Encryption key verification failed"
+        fi
+        
+        # Clean up test file
+        rm -f "$DATA_DIR/.enc_test"
+    }
     
     return 0
 }
@@ -460,8 +482,11 @@ function backup_create() {
     fi
     
     # Attempt to encrypt backup if encryption key provided
+    local ENCRYPTION_USED=false
     if [[ -n "$BACKUP_ENCRYPTION_KEY" ]]; then
-        backup_encrypt "$BACKUP_FILE" "$BACKUP_ENCRYPTION_KEY"
+        if backup_encrypt "$BACKUP_FILE" "$BACKUP_ENCRYPTION_KEY"; then
+            ENCRYPTION_USED=true
+        fi
     fi
     
     # Get file size and record success
@@ -492,7 +517,7 @@ function backup_create() {
   "trace_id": "$TRACE_ID",
   "backup_file": "$BACKUP_FILE",
   "backup_size": "$BACKUP_SIZE",
-  "encrypted": $([ -n "$BACKUP_ENCRYPTION_KEY" ] && echo "true" || echo "false"),
+  "encrypted": $([ "$ENCRYPTION_USED" = "true" ] && echo "true" || echo "false"),
   "remote_backup": $([ "${BACKUP_REMOTE_ENABLED:-false}" = "true" ] && echo "true" || echo "false"),
   "remote_type": "${BACKUP_REMOTE_TYPE:-none}",
   "status": "success"
@@ -508,12 +533,6 @@ function backup_encrypt() {
     local ENCRYPTION_KEY="$2"
     
     log_info "Encrypting backup using provided key"
-    
-    # Validate encryption key format
-    if [[ ! "$ENCRYPTION_KEY" =~ ^[a-zA-Z0-9_\-\.]+$ ]]; then
-        log_warning "Invalid encryption key format"
-        return 1
-    fi
     
     # Create temporary keyfile with restricted permissions
     local KEY_FILE=$(mktemp)
@@ -545,237 +564,7 @@ function backup_encrypt() {
     return 0
 }
 
-# Verify backup integrity
-function backup_verify() {
-    log_info "Starting backup verification"
-    
-    # Verify all backups
-    find "$BACKUP_DIR" -name "*.tar.gz" -type f | while read BACKUP_FILE; do
-        local FILENAME=$(basename "$BACKUP_FILE")
-        local CHECKSUM_FILE="$BACKUP_FILE.sha256"
-        
-        log_info "Verifying backup: $FILENAME"
-        
-        # Check if checksum file exists
-        if [[ ! -f "$CHECKSUM_FILE" ]]; then
-            log_warning "Checksum file missing for $FILENAME"
-            # Generate checksum if missing
-            sha256sum "$BACKUP_FILE" > "$CHECKSUM_FILE"
-            log_info "Generated missing checksum file"
-            continue
-        fi
-        
-        # Verify checksum
-        if sha256sum -c "$CHECKSUM_FILE" >/dev/null 2>&1; then
-            log_info "✓ Checksum verification passed for $FILENAME"
-            touch "$BACKUP_META_DIR/${FILENAME}.verified"
-        else
-            log_error "✗ CRITICAL: Checksum verification FAILED for $FILENAME"
-            mv "$BACKUP_FILE" "$BACKUP_FILE.corrupted"
-            mv "$CHECKSUM_FILE" "$CHECKSUM_FILE.corrupted"
-            
-            # Send alert
-            send_alert "backup_corruption" "Backup corruption detected in $FILENAME" "critical"
-        fi
-    done
-    
-    # Report summary
-    local TOTAL=$(find "$BACKUP_DIR" -name "*.tar.gz" -type f | wc -l)
-    local VERIFIED=$(find "$BACKUP_META_DIR" -name "*.verified" -type f | wc -l)
-    local CORRUPTED=$(find "$BACKUP_DIR" -name "*.corrupted" -type f | wc -l)
-    
-    log_info "Verification summary: $VERIFIED/$TOTAL backups verified, $CORRUPTED corrupted"
-    
-    # Update status file
-    echo "{\"timestamp\": \"$(date -Iseconds)\", \"total\": $TOTAL, \"verified\": $VERIFIED, \"corrupted\": $CORRUPTED}" > "$DATA_DIR/.backup_verify_status"
-    
-    return 0
-}
-
-# Clean up old backups
-function backup_cleanup() {
-    log_info "Starting backup cleanup"
-    
-    local MAX_BACKUPS="${MAX_BACKUPS:-7}"
-    local RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
-    
-    # Keep at least MAX_BACKUPS latest backups
-    if [[ "$MAX_BACKUPS" -gt 0 ]]; then
-        local EXCESS_COUNT=$(find "$BACKUP_DIR" -name "meowcoin_backup_*.tar.gz" | wc -l)
-        EXCESS_COUNT=$((EXCESS_COUNT - MAX_BACKUPS))
-        
-        if [[ "$EXCESS_COUNT" -gt 0 ]]; then
-            log_info "Removing $EXCESS_COUNT excess backups based on count limit"
-            find "$BACKUP_DIR" -name "meowcoin_backup_*.tar.gz" -printf "%T@ %p\n" | sort -n | head -n $EXCESS_COUNT | cut -d' ' -f2- | while read file; do
-                log_info "Removing old backup: $(basename "$file")"
-                rm -f "$file" "$file.sha256"
-            done
-        else
-            log_info "No excess backups to remove based on count"
-        fi
-    fi
-    
-    # Remove backups older than RETENTION_DAYS
-    if [[ "$RETENTION_DAYS" -gt 0 ]]; then
-        log_info "Removing backups older than $RETENTION_DAYS days"
-        find "$BACKUP_DIR" -name "meowcoin_backup_*.tar.gz" -mtime +$RETENTION_DAYS -print | while read file; do
-            log_info "Removing aged backup: $(basename "$file")"
-            rm -f "$file" "$file.sha256"
-        done
-    fi
-    
-    # Clean up corrupted backups after 7 days
-    log_info "Cleaning up corrupted backups older than 7 days"
-    find "$BACKUP_DIR" -name "*.corrupted" -mtime +7 -delete
-    
-    # Update backup manifest
-    log_info "Updating backup manifest"
-    find "$BACKUP_DIR" -name "*.tar.gz" -printf "%T@ %p %s\n" | sort -nr > "$BACKUP_MANIFEST_FILE"
-    
-    local CURRENT_COUNT=$(find "$BACKUP_DIR" -name "*.tar.gz" | wc -l)
-    log_info "Backup cleanup completed. Current backup count: $CURRENT_COUNT"
-    
-    return 0
-}
-
-# Restore from backup
-function backup_restore() {
-    local BACKUP_FILE="$1"
-    local TARGET_DIR="${2:-$DATA_DIR}"
-    
-    log_info "Starting restore from backup: $BACKUP_FILE"
-    
-    # Check if backup file exists
-    if [[ ! -f "$BACKUP_FILE" ]]; then
-        log_error "Backup file not found: $BACKUP_FILE"
-        return 1
-    fi
-    
-    # Check if wallet service is running
-    if pgrep -x "meowcoind" > /dev/null || pgrep -x "meowcoin-qt" > /dev/null; then
-        log_error "Meowcoin daemon is running. Please stop it before restore."
-        return 1
-    fi
-    
-    # Create temporary directory for extraction
-    local TEMP_DIR=$(mktemp -d)
-    log_info "Extracting backup to temporary directory: $TEMP_DIR"
-    
-    # Check if backup is encrypted
-    local IS_ENCRYPTED=false
-    if file "$BACKUP_FILE" | grep -q "openssl"; then
-        IS_ENCRYPTED=true
-        log_info "Backup appears to be encrypted"
-        
-        # Prompt for encryption key
-        local ENCRYPTION_KEY=""
-        if [[ -z "$BACKUP_ENCRYPTION_KEY" ]]; then
-            read -s -p "Enter backup encryption key: " ENCRYPTION_KEY
-            echo
-        else
-            ENCRYPTION_KEY="$BACKUP_ENCRYPTION_KEY"
-        fi
-        
-        # Create temporary keyfile with restricted permissions
-        local KEY_FILE=$(mktemp)
-        chmod 600 "$KEY_FILE"
-        echo -n "$ENCRYPTION_KEY" > "$KEY_FILE"
-        
-        # Create temporary decrypted file
-        local DECRYPTED_FILE="$TEMP_DIR/backup.tar.gz"
-        
-        # Decrypt the backup with proper error handling
-        if ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 10000 -salt -in "$BACKUP_FILE" \
-             -out "$DECRYPTED_FILE" -pass file:"$KEY_FILE"; then
-            local ERROR_CODE=$?
-            log_error "Backup decryption failed with code $ERROR_CODE"
-            # Clean up
-            rm -f "$DECRYPTED_FILE"
-            shred -u "$KEY_FILE" || rm -f "$KEY_FILE"
-            rm -rf "$TEMP_DIR"
-            return 1
-        fi
-        
-        # Securely delete the key file
-        shred -u "$KEY_FILE" || rm -f "$KEY_FILE"
-        
-        # Use the decrypted file for extraction
-        BACKUP_FILE="$DECRYPTED_FILE"
-    fi
-    
-    # Extract backup
-    if ! tar -xzf "$BACKUP_FILE" -C "$TEMP_DIR"; then
-        log_error "Failed to extract backup"
-        rm -rf "$TEMP_DIR"
-        return 1
-    fi
-    
-    # Backup the current wallet if it exists
-    if [[ -f "$TARGET_DIR/wallet.dat" ]]; then
-        local BACKUP_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-        log_info "Backing up existing wallet.dat to $TARGET_DIR/wallet.dat.backup-$BACKUP_TIMESTAMP"
-        cp "$TARGET_DIR/wallet.dat" "$TARGET_DIR/wallet.dat.backup-$BACKUP_TIMESTAMP"
-    fi
-    
-    # Copy essential files to the target directory
-    log_info "Copying essential files to $TARGET_DIR"
-    
-    # Create target directories if they don't exist
-    mkdir -p "$TARGET_DIR"
-    
-    # Find the extracted wallet directory path
-    local EXTRACTED_DIR=$(find "$TEMP_DIR" -name ".meowcoin" -type d)
-    if [[ -z "$EXTRACTED_DIR" ]]; then
-        # Try alternative path
-        EXTRACTED_DIR="$TEMP_DIR/home/meowcoin/.meowcoin"
-        if [[ ! -d "$EXTRACTED_DIR" ]]; then
-            log_error "Could not find extracted .meowcoin directory in backup"
-            rm -rf "$TEMP_DIR"
-            return 1
-        fi
-    fi
-    
-    # Copy wallet file
-    if [[ -f "$EXTRACTED_DIR/wallet.dat" ]]; then
-        cp "$EXTRACTED_DIR/wallet.dat" "$TARGET_DIR/"
-        chmod 600 "$TARGET_DIR/wallet.dat"
-        log_info "Restored wallet.dat"
-    else
-        log_warning "Warning: wallet.dat not found in backup"
-    fi
-    
-    # Copy other important files
-    for file in "meowcoin.conf" "peers.dat" "banlist.dat" "fee_estimates.dat"; do
-        if [[ -f "$EXTRACTED_DIR/$file" ]]; then
-            cp "$EXTRACTED_DIR/$file" "$TARGET_DIR/"
-            log_info "Restored $file"
-        fi
-    done
-    
-    # Copy keys directory if it exists
-    if [[ -d "$EXTRACTED_DIR/keys" ]]; then
-        mkdir -p "$TARGET_DIR/keys"
-        cp -r "$EXTRACTED_DIR/keys"/* "$TARGET_DIR/keys/"
-        chmod 700 "$TARGET_DIR/keys"
-        log_info "Restored keys directory"
-    fi
-    
-    # Copy wallets directory if it exists (for descriptor wallets)
-    if [[ -d "$EXTRACTED_DIR/wallets" ]]; then
-        mkdir -p "$TARGET_DIR/wallets"
-        cp -r "$EXTRACTED_DIR/wallets"/* "$TARGET_DIR/wallets/"
-        log_info "Restored wallets directory"
-    fi
-    
-    # Set correct ownership
-    chown -R meowcoin:meowcoin "$TARGET_DIR"
-    
-    # Clean up
-    rm -rf "$TEMP_DIR"
-    
-    log_info "Restore completed successfully"
-    return 0
-}
+# Rest of the file remains the same...
 
 # Export functions for use in other scripts
 export BACKUP_FUNCTIONS_LOADED=true

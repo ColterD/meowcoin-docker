@@ -53,7 +53,7 @@ RUN MEOWCOIN_VERSION=$(cat meowcoin_version.txt) && \
         exit 1; \
     fi
 
-# Build Meowcoin
+# Build Meowcoin with enhanced security flags
 RUN MEOWCOIN_VERSION=$(cat meowcoin_version.txt) && \
     echo "Cloning Meowcoin repository at version $MEOWCOIN_VERSION..." && \
     git clone --depth 1 --branch $MEOWCOIN_VERSION https://github.com/Meowcoin-Foundation/Meowcoin.git && \
@@ -71,8 +71,9 @@ RUN MEOWCOIN_VERSION=$(cat meowcoin_version.txt) && \
                 --enable-reduce-exports \
                 --with-pic \
                 --disable-ccache \
-                CXXFLAGS="-O2 -pipe -fPIC -fstack-protector-all" \
-                LDFLAGS="-Wl,-z,relro,-z,now" && \
+                CXXFLAGS="-O2 -pipe -fPIC -fstack-protector-all -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security" \
+                CFLAGS="-O2 -pipe -fPIC -fstack-protector-all -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security" \
+                LDFLAGS="-Wl,-z,relro,-z,now -Wl,-z,noexecstack" && \
     echo "Building Meowcoin..." && \
     make -j$(nproc) && \
     echo "Installing Meowcoin..." && \
@@ -137,7 +138,11 @@ RUN apk add --no-cache \
     curl=8.5.0-r0 \
     bc=1.07.1-r2 \
     openssl=3.1.4-r5 \
-    tini=0.19.0-r1
+    tini=0.19.0-r1 \
+    libcap=2.69-r0 \
+    libseccomp=2.5.4-r1 \
+    nano=7.2-r0 && \
+    rm -rf /var/cache/apk/* /tmp/*
 
 # Create meowcoin user with specific UID/GID for better security
 RUN addgroup -g 1000 -S meowcoin && \
@@ -157,6 +162,11 @@ RUN mkdir -p /etc/meowcoin \
     chmod 750 /data && \
     chmod 750 /home/meowcoin/.meowcoin
 
+# Create security directory
+RUN mkdir -p /etc/meowcoin/security && \
+    chown root:root /etc/meowcoin/security && \
+    chmod 750 /etc/meowcoin/security
+
 # Copy binaries from builder
 COPY --from=builder /install/usr/bin/meowcoin* /usr/bin/
 COPY --from=builder /install/usr/local/bin/ /usr/local/bin/
@@ -168,19 +178,32 @@ COPY scripts/entrypoint/ /usr/local/bin/entrypoint/
 COPY scripts/backup/ /usr/local/bin/backup/
 COPY scripts/monitoring/ /usr/local/bin/monitoring/
 COPY scripts/utils/ /usr/local/bin/utils/
+COPY scripts/core/ /usr/local/bin/core/
 COPY config/supervisord/ /etc/supervisor/conf.d/
 COPY config/fail2ban/ /etc/fail2ban/
 COPY config/templates/ /etc/meowcoin/templates/
 COPY meowcoin_version.txt /meowcoin_version.txt
 
 # Setup script permissions
-RUN chmod -R +x /usr/local/bin/lib/ /usr/local/bin/entrypoint/ /usr/local/bin/backup/ /usr/local/bin/monitoring/ /usr/local/bin/utils/ && \
+RUN chmod -R +x /usr/local/bin/lib/ /usr/local/bin/entrypoint/ /usr/local/bin/backup/ /usr/local/bin/monitoring/ /usr/local/bin/utils/ /usr/local/bin/core/ && \
     ln -s /usr/local/bin/entrypoint/main.sh /entrypoint.sh && \
     chmod 640 /etc/fail2ban/jail.* && \
     echo "* hard core 0" > /etc/security/limits.conf && \
     echo "* hard nofile 65535" >> /etc/security/limits.conf && \
     echo "* soft nofile 65535" >> /etc/security/limits.conf && \
     sha256sum /usr/bin/meowcoin* > /bin-checksums.txt
+
+# Apply additional capability restrictions
+RUN setcap cap_ipc_lock=+ep /usr/bin/meowcoind && \
+    setcap cap_net_bind_service=+ep /usr/bin/meowcoind
+
+# Remove unnecessary setuid/setgid binaries
+RUN find / -perm /6000 -type f -exec chmod a-s {} \; 2>/dev/null || true
+
+# Drop unnecessary capabilities
+RUN echo "Dropping unnecessary capabilities..." && \
+    echo "drop all" > /etc/security/capability.conf && \
+    echo "cap_net_bind_service,cap_ipc_lock meowcoin" >> /etc/security/capability.conf
 
 # Volume for blockchain data
 VOLUME ["/home/meowcoin/.meowcoin"]

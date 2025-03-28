@@ -11,6 +11,7 @@ DEFAULT_CONFIG_FILE="/home/meowcoin/.meowcoin/meowcoin.conf"
 DEFAULT_TEMPLATE_FILE="/etc/meowcoin/templates/meowcoin.conf.template"
 PASSWORD_FILE="/home/meowcoin/.meowcoin/.rpcpassword"
 CONFIG_VERSION_FILE="/home/meowcoin/.meowcoin/.config_version"
+SECRETS_DIR="/run/secrets"
 
 # Setup environment
 function setup_environment() {
@@ -47,7 +48,7 @@ function setup_environment() {
   RPC_USER=$(validate_env_variable "RPC_USER" "meowcoin" "^[a-zA-Z0-9_-]+$" "Username must contain only alphanumeric characters, underscores, and hyphens")
   log "Using RPC user: $RPC_USER" "INFO"
   
-  # Generate or load RPC password
+  # Setup RPC credentials using Docker secrets if available
   setup_rpc_credentials
   
   # Validate other key settings
@@ -107,9 +108,13 @@ function validate_environment_schema() {
   return 0
 }
 
-# Generate/load RPC credentials
+# Generate/load RPC credentials with Docker secrets support
 function setup_rpc_credentials() {
-  if [ -z "$RPC_PASSWORD" ]; then
+  # Check if Docker secret exists first
+  if [ -f "$SECRETS_DIR/meowcoin_rpc_password" ]; then
+    export RPC_PASSWORD=$(cat "$SECRETS_DIR/meowcoin_rpc_password")
+    log "Using RPC password from Docker secret" "INFO"
+  elif [ -z "$RPC_PASSWORD" ]; then
     # Check if password file exists
     if [ -f "$PASSWORD_FILE" ]; then
       export RPC_PASSWORD=$(cat "$PASSWORD_FILE")
