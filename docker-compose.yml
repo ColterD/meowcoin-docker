@@ -9,6 +9,7 @@ services:
     ports:
       - "9766:9766"  # RPC port
       - "8788:8788"  # P2P port
+      - "8080:8080"  # Web status dashboard
     restart: unless-stopped
 
 volumes:

@@ -17,6 +17,8 @@ RUN apt-get update && \
     libboost-program-options1.74.0 \
     libboost-thread1.74.0 \
     libboost-chrono1.74.0 \
+    python3 \
+    procps \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -105,55 +107,83 @@ RUN mkdir -p /home/meowcoin/.meowcoin && \
 RUN mkdir -p /config && \
     chown meowcoin:meowcoin /config
 
-# Create a simple entrypoint script with password display
-RUN echo '#!/bin/bash\n\
-# Check if custom config file exists and use it\n\
-if [ -f /config/meowcoin.conf ]; then\n\
-  echo "Using custom config from mounted volume"\n\
-  cp /config/meowcoin.conf /home/meowcoin/.meowcoin/meowcoin.conf\n\
-  chown meowcoin:meowcoin /home/meowcoin/.meowcoin/meowcoin.conf\n\
-fi\n\
-\n\
-# Handle CLI commands\n\
-if [ "$1" = "cli" ]; then\n\
-  shift\n\
-  exec su -c "meowcoin-cli -conf=/home/meowcoin/.meowcoin/meowcoin.conf \"$@\"" meowcoin\n\
-elif [ "$1" = "bash" ] || [ "$1" = "sh" ]; then\n\
-  exec /bin/bash\n\
-elif [ "$1" = "getpassword" ]; then\n\
-  if [ -f /home/meowcoin/.meowcoin/rpcpassword ]; then\n\
-    cat /home/meowcoin/.meowcoin/rpcpassword\n\
-  else\n\
-    echo "Password file not found. Using custom configuration."\n\
-  fi\n\
-else\n\
-  # Display the RPC credentials for the user if using auto-generated password\n\
-  if [ -f /home/meowcoin/.meowcoin/rpcpassword ]; then\n\
-    PASSWORD=$(cat /home/meowcoin/.meowcoin/rpcpassword)\n\
-    echo "--------------------------------------------------------"\n\
-    echo "RPC Credentials:"\n\
-    echo "Username: meowcoin"\n\
-    echo "Password: ${PASSWORD}"\n\
-    echo "--------------------------------------------------------"\n\
-    echo "Use these credentials to connect to the RPC interface"\n\
-    echo "You can also retrieve this password with:"\n\
-    echo "docker exec meowcoin-node entrypoint.sh getpassword"\n\
-    echo "--------------------------------------------------------"\n\
-  fi\n\
-\n\
-  # Run the daemon\n\
-  echo "Starting Meowcoin daemon..."\n\
-  exec su -c "meowcoind -conf=/home/meowcoin/.meowcoin/meowcoin.conf" meowcoin\n\
-fi' > /usr/local/bin/entrypoint.sh && \
-    chmod +x /usr/local/bin/entrypoint.sh
+# Create the simple dashboard
+RUN mkdir -p /var/www/html && \
+    echo '<!DOCTYPE html>\
+<html>\
+<head>\
+    <title>Meowcoin Node Status</title>\
+    <meta http-equiv="refresh" content="10">\
+    <style>\
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f0f0; }\
+        .container { max-width: 800px; margin: 0 auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }\
+        h1 { color: #333; margin-top: 0; text-align: center; }\
+        .status-box { background: #f8f8f8; border-radius: 5px; padding: 15px; margin: 15px 0; border: 1px solid #e0e0e0; }\
+        pre { background: #eee; padding: 10px; border-radius: 5px; overflow: auto; white-space: pre-wrap; font-family: monospace; }\
+        .links { margin-top: 20px; }\
+        .links a { display: inline-block; margin-right: 15px; color: #0066cc; text-decoration: none; }\
+        .links a:hover { text-decoration: underline; }\
+        .footer { margin-top: 20px; font-size: 12px; color: #666; text-align: center; }\
+    </style>\
+</head>\
+<body>\
+    <div class="container">\
+        <h1>🐱 Meowcoin Node Status</h1>\
+        <div class="status-box">\
+            <h2>Node Information</h2>\
+            <pre id="node-info">Loading node information...</pre>\
+        </div>\
+        <div class="links">\
+            <h2>External Resources</h2>\
+            <a href="https://explorer.mewccrypto.com/" target="_blank">Meowcoin Explorer</a>\
+            <a href="https://explorer.meowcoin.lol/" target="_blank">Meowcoin Explorer 2</a>\
+            <a href="https://github.com/Meowcoin-Foundation/Meowcoin" target="_blank">GitHub Repository</a>\
+        </div>\
+        <div class="footer">\
+            Last updated: <span id="last-updated">-</span>\
+        </div>\
+    </div>\
+    <script>\
+        function updateStatus() {\
+            var timestamp = new Date().toLocaleString();\
+            document.getElementById("last-updated").textContent = timestamp;\
+            \
+            var xhr = new XMLHttpRequest();\
+            xhr.open("GET", "/status.txt?" + timestamp, true);\
+            xhr.onreadystatechange = function() {\
+                if (xhr.readyState === 4) {\
+                    if (xhr.status === 200) {\
+                        document.getElementById("node-info").textContent = xhr.responseText;\
+                    } else {\
+                        document.getElementById("node-info").textContent = "Error loading status information. Status code: " + xhr.status;\
+                    }\
+                }\
+            };\
+            xhr.send();\
+        }\
+        \
+        updateStatus();\
+        setInterval(updateStatus, 10000);\
+    </script>\
+</body>\
+</html>' > /var/www/html/index.html
+
+# Create the update-status script
+COPY update-status.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/update-status.sh
+
+# Create the entrypoint script
+COPY entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Volume for blockchain data and custom configs
 VOLUME ["/home/meowcoin/.meowcoin", "/config"]
 
 # Expose ports:
 # - 9766: RPC port
-# - 8788: P2P port (official Meowcoin P2P port from logs)
-EXPOSE 9766 8788
+# - 8788: P2P port
+# - 8080: Web status dashboard
+EXPOSE 9766 8788 8080
 
 # Use entrypoint script
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
