@@ -7,25 +7,24 @@ services:
     volumes:
       - meowcoin-data:/home/meowcoin/.meowcoin
     ports:
-      - "127.0.0.1:8332:8332"
-      - "8333:8333"
-      - "9449:9449"
-      - "3001:3001"
+      - "9766:9766"     # RPC port
+      - "9767:9767"     # P2P port
+      - "9449:9449"     # Metrics port
+      - "5800:5800"     # VNC web access port
     restart: unless-stopped
     cap_add:
       - SYS_PTRACE
     environment:
-      - RPC_BIND=127.0.0.1
-      - RPC_ALLOWIP=127.0.0.1
+      - RPC_BIND=0.0.0.0       # Allow RPC connections from any interface
+      - RPC_ALLOWIP=0.0.0.0/0  # Allow RPC from any IP
       - ENABLE_SSL=false
       - ENABLE_FAIL2BAN=false
       - ENABLE_JWT_AUTH=false
       - ENABLE_READONLY_FS=false
-      - ENABLE_METRICS=false
+      - ENABLE_METRICS=true    # Enable metrics for better monitoring
       - TZ=UTC
       - ENABLE_BACKUPS=false
       - ENABLE_PLUGINS=false
-      - BTCEXP_ADDRESS_API=none
     deploy:
       resources:
         limits:
