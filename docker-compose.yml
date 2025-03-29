@@ -1,8 +1,6 @@
 services:
   meowcoin:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     image: meowcoin:latest
     container_name: meowcoin-node
     volumes:
@@ -12,8 +10,6 @@ services:
       - "9766:9766"  # RPC port
       - "8788:8788"  # P2P port
     restart: unless-stopped
-    environment:
-      - TZ=UTC  # Set your timezone here
 
 volumes:
   meowcoin-data:
