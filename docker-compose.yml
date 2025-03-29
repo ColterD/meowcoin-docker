@@ -1,85 +1,54 @@
-# docker-compose.yml
+version: '3.8'
 
 services:
   meowcoin:
-    image: colterd/meowcoin-docker:${MEOWCOIN_VERSION:-2.0.5}
+    image: ${MEOWCOIN_IMAGE:-colterd/meowcoin-docker:latest}
     container_name: meowcoin-node
     volumes:
       - meowcoin-data:/home/meowcoin/.meowcoin
-      - ./security/seccomp-profile.json:/etc/docker/seccomp-profile.json:ro
-      - ./security/apparmor-profile:/etc/apparmor.d/docker-meowcoin:ro
     ports:
       - "127.0.0.1:8332:8332"  # Only expose RPC locally
       - "8333:8333"  # P2P can be public
     restart: unless-stopped
     environment:
-      # CORE SETTINGS
+      # Core settings
       - RPC_BIND=127.0.0.1
       - RPC_ALLOWIP=127.0.0.1
       
-    # RESOURCE SETTINGS automatically optimized if not set
-    tmpfs:
-      - /tmp:exec,size=128m
-      - /var/run:size=32m
-    read_only: true
-    security_opt:
-      - seccomp=/etc/docker/seccomp-profile.json
-      - apparmor=docker-meowcoin
-      - no-new-privileges=true
-    
-    secrets:
-      - meowcoin_rpc_password
-      - meowcoin_jwt_key
-      - meowcoin_backup_key
-    
-    # SECURITY FEATURES
-    environment:
-      - ENABLE_SSL=true
-      - ENABLE_FAIL2BAN=true
-      - ENABLE_JWT_AUTH=true
-      - ENABLE_READONLY_FS=true
+      # Security features
+      - ENABLE_SSL=${ENABLE_SSL:-false}
+      - ENABLE_FAIL2BAN=${ENABLE_FAIL2BAN:-false}
+      - ENABLE_JWT_AUTH=${ENABLE_JWT_AUTH:-false}
+      - ENABLE_READONLY_FS=${ENABLE_READONLY_FS:-false}
       
-      # MONITORING FEATURES
-      - ENABLE_METRICS=true
-      - TZ=UTC
+      # Monitoring features
+      - ENABLE_METRICS=${ENABLE_METRICS:-false}
+      - TZ=${TZ:-UTC}
       
-      # BACKUP FEATURES
-      - ENABLE_BACKUPS=true
-      - BACKUP_SCHEDULE="0 0 * * *"  # Daily at midnight
-      - MAX_BACKUPS=7
-      - BACKUP_COMPRESSION_LEVEL=6
-      - BACKUP_REMOTE_ENABLED=false
+      # Backup features
+      - ENABLE_BACKUPS=${ENABLE_BACKUPS:-false}
+      - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-"0 0 * * *"}
+      - MAX_BACKUPS=${MAX_BACKUPS:-7}
       
-      # ADVANCED SECURITY
-      - ENABLE_SECCOMP=true
-      - ENABLE_APPARMOR=true
-      - PLUGINS_ISOLATION=true
-      
-      # STORAGE OPTIMIZATION
-      - ENABLE_PRUNING=true
-      - PRUNING_KEEP_BLOCKS=10000
-      
-      # VERSION MANAGEMENT
-      - ROLLBACK_ENABLED=true
-      - BACKUP_BEFORE_UPDATE=true
+      # Plugin settings
+      - ENABLE_PLUGINS=${ENABLE_PLUGINS:-false}
+      - PLUGINS_ISOLATION=${PLUGINS_ISOLATION:-true}
     
     # Resource limits
     deploy:
       resources:
         limits:
-          memory: 4G
-          cpus: '2'
-        reservations:
-          memory: 1G
-          cpus: '0.5'
+          memory: ${MEOWCOIN_MEMORY:-4G}
+          cpus: ${MEOWCOIN_CPUS:-'2'}
     
-    # Health check (used by Docker)
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/monitoring/health-check.sh"]
-      interval: 5m
-      timeout: 30s
-      retries: 3
-      start_period: 30m
+    # Security settings
+    security_opt:
+      - seccomp=/etc/docker/seccomp-profile.json
+      - no-new-privileges=true
+    read_only: ${ENABLE_READONLY_FS:-false}
+    tmpfs:
+      - /tmp:exec,size=128m
+      - /var/run:size=32m
 
   # Optional Prometheus monitoring stack
   prometheus:
@@ -110,16 +79,5 @@ services:
 
 volumes:
   meowcoin-data:
-    name: meowcoin-data
   prometheus-data:
-    name: meowcoin-prometheus-data
   grafana-data:
-    name: meowcoin-grafana-data
-
-secrets:
-  meowcoin_rpc_password:
-    file: ./security/secrets/rpc_password.txt
-  meowcoin_jwt_key:
-    file: ./security/secrets/jwt_key.txt
-  meowcoin_backup_key:
-    file: ./security/secrets/backup_key.txt

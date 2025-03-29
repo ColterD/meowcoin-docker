@@ -1,13 +1,30 @@
-# .dockerignore
+# Git
 .git
-.github
-docs
-tests
-*.md
 .gitignore
-.DS_Store
+.github
+
+# Node.js
+node_modules
+npm-debug.log
+
+# Tests
+tests
+jest.config.js
+
+# Documentation
+docs
+*.md
+LICENSE
+
+# Development
 .vscode
-**/node_modules
-**/*.log
-security/secrets/*
-!security/secrets/*.example
+.idea
+*.log
+*.tmp
+
+# Other
+.DS_Store
+.env
+.env.*
+*.swp
+*.swo
