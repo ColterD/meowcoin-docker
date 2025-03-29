@@ -114,16 +114,40 @@ RUN set -ex && \
     # Binaries installed successfully
     echo "Binaries installed successfully"
 
-# Create Meowcoin configuration
+# Use a fixed password instead of randomly generating one
 RUN mkdir -p /home/meowcoin/.meowcoin && \
     echo "server=1" > /home/meowcoin/.meowcoin/meowcoin.conf && \
     echo "rpcuser=meowcoin" >> /home/meowcoin/.meowcoin/meowcoin.conf && \
-    echo "rpcpassword=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 32)" >> /home/meowcoin/.meowcoin/meowcoin.conf && \
+    echo "rpcpassword=meowcoinpass123" >> /home/meowcoin/.meowcoin/meowcoin.conf && \
     echo "rpcport=9766" >> /home/meowcoin/.meowcoin/meowcoin.conf && \
     echo "rpcbind=127.0.0.1" >> /home/meowcoin/.meowcoin/meowcoin.conf && \
     echo "rpcallowip=127.0.0.1" >> /home/meowcoin/.meowcoin/meowcoin.conf && \
     echo "datadir=/home/meowcoin/.meowcoin" >> /home/meowcoin/.meowcoin/meowcoin.conf && \
     chown -R meowcoin:meowcoin /home/meowcoin/.meowcoin
+
+# Create links for the root user to use the meowcoin configuration
+RUN mkdir -p /root/.meowcoin && \
+    ln -s /home/meowcoin/.meowcoin/meowcoin.conf /root/.meowcoin/meowcoin.conf
+
+# Create a wrapper script for meowcoin-cli
+RUN echo '#!/bin/bash' > /usr/local/bin/meowcoin-cli-wrapper && \
+    echo 'meowcoin-cli -conf=/home/meowcoin/.meowcoin/meowcoin.conf -datadir=/home/meowcoin/.meowcoin "$@"' >> /usr/local/bin/meowcoin-cli-wrapper && \
+    chmod +x /usr/local/bin/meowcoin-cli-wrapper
+
+# Create environment file for the block explorer
+RUN mkdir -p /app/explorer/env && \
+    echo "BTCEXP_COIN=BTC" > /app/explorer/env/.env && \
+    echo "BTCEXP_HOST=0.0.0.0" >> /app/explorer/env/.env && \
+    echo "BTCEXP_PORT=3001" >> /app/explorer/env/.env && \
+    echo "BTCEXP_BITCOIND_HOST=127.0.0.1" >> /app/explorer/env/.env && \
+    echo "BTCEXP_BITCOIND_PORT=9766" >> /app/explorer/env/.env && \
+    echo "BTCEXP_BITCOIND_USER=meowcoin" >> /app/explorer/env/.env && \
+    echo "BTCEXP_BITCOIND_PASS=meowcoinpass123" >> /app/explorer/env/.env && \
+    echo "BTCEXP_BITCOIND_RPC_TIMEOUT=10000" >> /app/explorer/env/.env && \
+    echo "BTCEXP_ADDRESS_API=blockchain.com" >> /app/explorer/env/.env && \
+    echo "BTCEXP_SITE_TITLE=Meowcoin Explorer" >> /app/explorer/env/.env && \
+    echo "BTCEXP_UI_THEME=dark" >> /app/explorer/env/.env && \
+    chown -R meowcoin:meowcoin /app/explorer/env
 
 # Copy source files for auxiliary tools
 COPY src/ /app/
@@ -134,16 +158,16 @@ COPY config/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Add block explorer configuration to supervisord
 RUN echo "[program:explorer]" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "command=node /app/explorer/node_modules/btc-rpc-explorer/bin/www" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "command=cd /app/explorer && node /app/explorer/node_modules/btc-rpc-explorer/bin/www" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "user=meowcoin" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "directory=/app/explorer" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "autostart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "autorestart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "priority=20" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile=/dev/stdout" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stderr_logfile=/dev/stderr" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "stderr_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "environment=BTCEXP_HOST=0.0.0.0,BTCEXP_PORT=3001,BTCEXP_BITCOIND_HOST=127.0.0.1,BTCEXP_BITCOIND_PORT=9766,BTCEXP_BITCOIND_USER=meowcoin,BTCEXP_BITCOIND_PASS=\"$(grep rpcpassword /home/meowcoin/.meowcoin/meowcoin.conf | cut -d= -f2)\",BTCEXP_BITCOIND_RPC_TIMEOUT=10000,BTCEXP_ADDRESS_API=electrumx,BTCEXP_COIN=BTC" >> /etc/supervisor/conf.d/supervisord.conf
+    echo "stderr_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf
 
 # Override the meowcoin command in supervisord config to use proper datadir
 RUN sed -i 's|command=/usr/bin/meowcoind -conf=/home/meowcoin/.meowcoin/meowcoin.conf|command=/usr/bin/meowcoind -conf=/home/meowcoin/.meowcoin/meowcoin.conf -datadir=/home/meowcoin/.meowcoin|g' /etc/supervisor/conf.d/supervisord.conf
@@ -154,7 +178,7 @@ COPY package.json ./
 RUN npm install --omit=dev --no-package-lock
 
 # Set up environment
-ENV PATH="/app/bin:${PATH}"
+ENV PATH="/app/bin:/usr/local/bin:${PATH}"
 ENV NODE_ENV="production"
 
 # Make scripts executable

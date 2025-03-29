@@ -1,83 +1,42 @@
-version: '3.8'
-
 services:
   meowcoin:
-    image: ${MEOWCOIN_IMAGE:-colterd/meowcoin-docker:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: meowcoin-node
     volumes:
       - meowcoin-data:/home/meowcoin/.meowcoin
     ports:
-      - "127.0.0.1:8332:8332"  # Only expose RPC locally
-      - "8333:8333"  # P2P can be public
+      - "127.0.0.1:8332:8332"
+      - "8333:8333"
+      - "9449:9449"
+      - "3001:3001"
     restart: unless-stopped
+    cap_add:
+      - SYS_PTRACE
     environment:
-      # Core settings
       - RPC_BIND=127.0.0.1
       - RPC_ALLOWIP=127.0.0.1
-      
-      # Security features
-      - ENABLE_SSL=${ENABLE_SSL:-false}
-      - ENABLE_FAIL2BAN=${ENABLE_FAIL2BAN:-false}
-      - ENABLE_JWT_AUTH=${ENABLE_JWT_AUTH:-false}
-      - ENABLE_READONLY_FS=${ENABLE_READONLY_FS:-false}
-      
-      # Monitoring features
-      - ENABLE_METRICS=${ENABLE_METRICS:-false}
-      - TZ=${TZ:-UTC}
-      
-      # Backup features
-      - ENABLE_BACKUPS=${ENABLE_BACKUPS:-false}
-      - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-"0 0 * * *"}
-      - MAX_BACKUPS=${MAX_BACKUPS:-7}
-      
-      # Plugin settings
-      - ENABLE_PLUGINS=${ENABLE_PLUGINS:-false}
-      - PLUGINS_ISOLATION=${PLUGINS_ISOLATION:-true}
-    
-    # Resource limits
+      - ENABLE_SSL=false
+      - ENABLE_FAIL2BAN=false
+      - ENABLE_JWT_AUTH=false
+      - ENABLE_READONLY_FS=false
+      - ENABLE_METRICS=false
+      - TZ=UTC
+      - ENABLE_BACKUPS=false
+      - ENABLE_PLUGINS=false
+      - BTCEXP_ADDRESS_API=none
     deploy:
       resources:
         limits:
-          memory: ${MEOWCOIN_MEMORY:-4G}
-          cpus: ${MEOWCOIN_CPUS:-'2'}
-    
-    # Security settings
+          memory: 4G
+          cpus: 2
     security_opt:
-      - seccomp=/etc/docker/seccomp-profile.json
       - no-new-privileges=true
-    read_only: ${ENABLE_READONLY_FS:-false}
+    read_only: false
     tmpfs:
       - /tmp:exec,size=128m
       - /var/run:size=32m
 
-  # Optional Prometheus monitoring stack
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: meowcoin-prometheus
-    volumes:
-      - ./config/prometheus:/etc/prometheus
-      - prometheus-data:/prometheus
-    ports:
-      - "127.0.0.1:9090:9090"
-    depends_on:
-      - meowcoin
-    profiles: ["monitoring"]
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: meowcoin-grafana
-    volumes:
-      - ./config/grafana/provisioning:/etc/grafana/provisioning
-      - grafana-data:/var/lib/grafana
-    ports:
-      - "127.0.0.1:3000:3000"
-    depends_on:
-      - prometheus
-    profiles: ["monitoring"]
-    restart: unless-stopped
-
 volumes:
   meowcoin-data:
-  prometheus-data:
-  grafana-data:
