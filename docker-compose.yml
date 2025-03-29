@@ -3,39 +3,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: meowcoin:latest
     container_name: meowcoin-node
     volumes:
       - meowcoin-data:/home/meowcoin/.meowcoin
+      - ./config:/config
     ports:
-      - "9766:9766"     # RPC port
-      - "9767:9767"     # P2P port
-      - "9449:9449"     # Metrics port
-      - "5800:5800"     # VNC web access port
+      - "9766:9766"  # RPC port
+      - "8788:8788"  # P2P port
     restart: unless-stopped
-    cap_add:
-      - SYS_PTRACE
     environment:
-      - RPC_BIND=0.0.0.0       # Allow RPC connections from any interface
-      - RPC_ALLOWIP=0.0.0.0/0  # Allow RPC from any IP
-      - ENABLE_SSL=false
-      - ENABLE_FAIL2BAN=false
-      - ENABLE_JWT_AUTH=false
-      - ENABLE_READONLY_FS=false
-      - ENABLE_METRICS=true    # Enable metrics for better monitoring
-      - TZ=UTC
-      - ENABLE_BACKUPS=false
-      - ENABLE_PLUGINS=false
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-          cpus: 2
-    security_opt:
-      - no-new-privileges=true
-    read_only: false
-    tmpfs:
-      - /tmp:exec,size=128m
-      - /var/run:size=32m
+      - TZ=UTC  # Set your timezone here
 
 volumes:
   meowcoin-data:
