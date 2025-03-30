@@ -1,11 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="auto">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meowcoin Node Dashboard</title>
     <link rel="stylesheet" href="css/main.css">
-    <meta http-equiv="refresh" content="10">
 </head>
 <body>
     <div class="container">
@@ -21,10 +20,14 @@
                     <span id="status-light" class="status-light"></span>
                     <span id="status-text">Loading...</span>
                 </div>
+                <div id="version-update-alert" class="version-update-alert">
+                    <p>New version available!</p>
+                    <button id="update-available-btn" class="btn btn-primary">Update</button>
+                </div>
                 <div class="info-grid">
                     <div class="info-item">
                         <h3>Version</h3>
-                        <p id="version">-</p>
+                        <p><a id="version" href="#" target="_blank">-</a></p>
                     </div>
                     <div class="info-item">
                         <h3>Connections</h3>
@@ -38,6 +41,28 @@
                         <h3>Sync Progress</h3>
                         <p id="progress">-</p>
                     </div>
+                </div>
+                <div class="info-grid" style="margin-top: 20px;">
+                    <div class="info-item">
+                        <h3>Network Download</h3>
+                        <p id="network-down">-</p>
+                    </div>
+                    <div class="info-item">
+                        <h3>Network Upload</h3>
+                        <p id="network-up">-</p>
+                    </div>
+                    <div class="info-item">
+                        <h3>Total Downloaded</h3>
+                        <p id="total-received">-</p>
+                    </div>
+                    <div class="info-item">
+                        <h3>Total Uploaded</h3>
+                        <p id="total-sent">-</p>
+                    </div>
+                </div>
+                <div class="control-buttons">
+                    <button id="restart-btn" class="btn btn-warning">Restart Node</button>
+                    <button id="shutdown-btn" class="btn btn-danger">Shutdown Node</button>
                 </div>
             </section>
             
@@ -61,18 +86,80 @@
                 </div>
             </section>
             
-            <section class="status-card">
-                <h2>Blockchain Explorer Links</h2>
-                <div class="links">
-                    <a href="https://explorer.mewccrypto.com/" target="_blank">Meowcoin Explorer</a>
-                    <a href="https://explorer.meowcoin.lol/" target="_blank">Meowcoin Explorer 2</a>
+            <section class="status-card" id="disk-usage-section">
+                <h2>Disk Usage Details</h2>
+                <div id="disk-usage-details">Loading detailed disk usage...</div>
+            </section>
+            
+            <section class="status-card" id="console-section">
+                <div class="section-header">
+                    <h2>Node Console</h2>
+                    <button id="console-toggle" class="toggle-btn">
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                </div>
+                <div class="console-container">
+                    <div id="console-output" class="console-output"></div>
                 </div>
             </section>
         </main>
         
         <footer>
-            <p>Last updated: <span id="last-updated">-</span></p>
+            <div class="footer-content">
+                <p>Last updated: <span id="last-updated">-</span></p>
+                <div class="refresh-timer">
+                    <div class="progress-bar">
+                        <div id="refresh-timer-bar" class="progress" style="width: 100%"></div>
+                    </div>
+                    <span id="refresh-timer-text">30s</span>
+                </div>
+            </div>
         </footer>
+    </div>
+    
+    <!-- Settings Panel -->
+    <button class="settings-toggle" id="settings-toggle">⚙️</button>
+    
+    <div class="settings-panel" id="settings-panel">
+        <div class="settings-header">
+            <h2>Settings</h2>
+            <button class="settings-close" id="settings-close">×</button>
+        </div>
+        
+        <div class="settings-group">
+            <h3>Display</h3>
+            <div class="settings-item">
+                <label for="theme-select">Theme</label>
+                <select id="theme-select">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                    <option value="auto">Auto (System)</option>
+                </select>
+            </div>
+            <div class="settings-item">
+                <label for="refresh-interval">Refresh Interval (seconds)</label>
+                <input type="number" id="refresh-interval" min="5" max="300" value="30">
+            </div>
+        </div>
+        
+        <div class="settings-group">
+            <h3>Node Configuration</h3>
+            <div class="settings-item">
+                <label for="max-connections">Max Connections</label>
+                <input type="number" id="max-connections" min="1" max="125">
+            </div>
+            <div class="settings-item">
+                <label for="enable-txindex">Enable Transaction Index</label>
+                <select id="enable-txindex">
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="settings-group">
+            <button id="save-settings" class="btn btn-primary">Save Settings</button>
+        </div>
     </div>
     
     <script src="js/dashboard.js"></script>

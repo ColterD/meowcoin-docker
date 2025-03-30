@@ -76,7 +76,8 @@ RUN apt-get update && \
         bash curl jq ca-certificates bc python3 nginx \
         procps libboost-system1.74.0 libboost-filesystem1.74.0 \
         libboost-program-options1.74.0 libboost-thread1.74.0 \
-        libboost-chrono1.74.0 gosu file && \
+        libboost-chrono1.74.0 gosu file \
+        libnginx-mod-http-lua && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /run/nginx

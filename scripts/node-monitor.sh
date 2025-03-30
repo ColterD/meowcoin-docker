@@ -26,6 +26,7 @@ while true; do
     # Get blockchain info
     BLOCKCHAIN_INFO=$(gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblockchaininfo 2>/dev/null || echo "{}")
     NETWORK_INFO=$(gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getnetworkinfo 2>/dev/null || echo "{}")
+    NET_TOTALS=$(gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getnettotals 2>/dev/null || echo "{}")
     
     # Parse blockchain info
     BLOCKS=$(echo "$BLOCKCHAIN_INFO" | jq -r ".blocks // 0")
@@ -38,6 +39,10 @@ while true; do
     VERSION=$(echo "$NETWORK_INFO" | jq -r ".version // \"Unknown\"")
     SUBVERSION=$(echo "$NETWORK_INFO" | jq -r ".subversion // \"Unknown\"")
     CONNECTIONS=$(echo "$NETWORK_INFO" | jq -r ".connections // 0")
+    
+    # Parse network totals
+    BYTES_RECV=$(echo "$NET_TOTALS" | jq -r ".totalbytesrecv // 0")
+    BYTES_SENT=$(echo "$NET_TOTALS" | jq -r ".totalbytessent // 0")
     
     # Determine status
     if [ "$BLOCKS" -lt "$HEADERS" ]; then
@@ -61,6 +66,10 @@ while true; do
     DISK_USED=$(echo "$DISK_INFO" | awk '{print $3}')
     DISK_PERCENT=$(echo "$DISK_INFO" | awk '{print $5}' | sed 's/%//')
     
+    # Get node settings
+    MAX_CONNECTIONS=$(grep -oP "maxconnections=\K\d+" "${MEOWCOIN_CONFIG}/meowcoin.conf" 2>/dev/null || echo "50")
+    ENABLE_TXINDEX=$(grep -oP "txindex=\K\d+" "${MEOWCOIN_CONFIG}/meowcoin.conf" 2>/dev/null || echo "1")
+    
     # Create status JSON
     STATUS=$(jq -n \
       --arg status "$NODE_STATUS" \
@@ -70,12 +79,16 @@ while true; do
       --arg version "$VERSION" \
       --arg subversion "$SUBVERSION" \
       --arg connections "$CONNECTIONS" \
+      --arg bytesrecv "$BYTES_RECV" \
+      --arg bytessent "$BYTES_SENT" \
       --arg memused "$MEM_USED" \
       --arg memtotal "$MEM_TOTAL" \
       --arg mempercent "$MEM_PERCENT" \
       --arg disksize "$DISK_SIZE" \
       --arg diskused "$DISK_USED" \
       --arg diskpercent "$DISK_PERCENT" \
+      --arg maxconnections "$MAX_CONNECTIONS" \
+      --arg enabletxindex "$ENABLE_TXINDEX" \
       --arg time "$(date '+%Y-%m-%d %H:%M:%S')" \
       '{
         "status": $status,
@@ -87,7 +100,9 @@ while true; do
         "node": {
           "version": $version,
           "subversion": $subversion,
-          "connections": $connections
+          "connections": $connections,
+          "bytesReceived": $bytesrecv,
+          "bytesSent": $bytessent
         },
         "system": {
           "memory": {
@@ -100,6 +115,10 @@ while true; do
             "used": $diskused,
             "percent": $diskpercent
           }
+        },
+        "settings": {
+          "maxConnections": $maxconnections,
+          "enableTxindex": $enabletxindex
         },
         "updated": $time
       }')
