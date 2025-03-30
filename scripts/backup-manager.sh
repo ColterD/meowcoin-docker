@@ -38,7 +38,7 @@ while true; do
   # Check if daemon is running before attempting backup
   if pgrep -x "meowcoind" > /dev/null; then
     # Check if blockchain is syncing
-    SYNC_STATUS=$(su-exec meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblockchaininfo 2>/dev/null | jq -r '.initialblockdownload // true')
+    SYNC_STATUS=$(gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblockchaininfo 2>/dev/null | jq -r '.initialblockdownload // true')
     
     # Only backup if not syncing
     if [ "$SYNC_STATUS" != "true" ]; then
@@ -49,7 +49,7 @@ while true; do
       BACKUP_FILE="${BACKUP_DIR}/meowcoin-backup-${TIMESTAMP}.dat"
       
       # Create backup
-      if su-exec meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" backupwallet "${BACKUP_FILE}" 2>/dev/null; then
+      if gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" backupwallet "${BACKUP_FILE}" 2>/dev/null; then
         log_info "Backup created successfully: ${BACKUP_FILE}"
         
         # Rotate old backups

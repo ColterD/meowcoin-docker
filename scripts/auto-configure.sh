@@ -50,6 +50,7 @@ RPC_USER="meowcoin"
 RPC_PASS=$(openssl rand -hex 32)
 
 # Save RPC password to secure location
+mkdir -p "${MEOWCOIN_DATA}/.meowcoin"
 echo $RPC_PASS > "${MEOWCOIN_DATA}/.meowcoin/rpc.pass"
 chmod 600 "${MEOWCOIN_DATA}/.meowcoin/rpc.pass"
 
@@ -94,7 +95,21 @@ log_info "- Max Mempool: ${MAX_MEMPOOL}MB"
 log_info "- Max Connections: ${CONNECTIONS}"
 
 # Setup nginx for web interface
-cat > /etc/nginx/http.d/default.conf << EOF
+# Check for Debian vs Alpine paths for nginx
+if [ -d "/etc/nginx/conf.d" ]; then
+    NGINX_CONF_PATH="/etc/nginx/conf.d/default.conf"
+elif [ -d "/etc/nginx/sites-available" ]; then
+    NGINX_CONF_PATH="/etc/nginx/sites-available/default"
+    NGINX_ENABLED_PATH="/etc/nginx/sites-enabled/default"
+elif [ -d "/etc/nginx/http.d" ]; then
+    NGINX_CONF_PATH="/etc/nginx/http.d/default.conf"
+else
+    mkdir -p /etc/nginx/conf.d
+    NGINX_CONF_PATH="/etc/nginx/conf.d/default.conf"
+fi
+
+# Write nginx configuration
+cat > "${NGINX_CONF_PATH}" << EOF
 server {
     listen 8080 default_server;
     listen [::]:8080 default_server;
@@ -112,5 +127,10 @@ server {
     }
 }
 EOF
+
+# Create symlink if using sites-enabled
+if [ ! -z "${NGINX_ENABLED_PATH}" ] && [ ! -f "${NGINX_ENABLED_PATH}" ]; then
+    ln -sf "${NGINX_CONF_PATH}" "${NGINX_ENABLED_PATH}"
+fi
 
 log_info "Web server configured on port 8080"
