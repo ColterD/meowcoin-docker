@@ -48,9 +48,18 @@ while true; do
       TIMESTAMP=$(date +%Y%m%d-%H%M%S)
       BACKUP_FILE="${BACKUP_DIR}/meowcoin-backup-${TIMESTAMP}.dat"
       
-      # Create backup
-      if gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" backupwallet "${BACKUP_FILE}" 2>/dev/null; then
+      # Create backup with enhanced error logging
+      if gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" backupwallet "${BACKUP_FILE}" 2> /tmp/backup_error.log; then
         log_info "Backup created successfully: ${BACKUP_FILE}"
+        BACKUP_SIZE=$(du -h "${BACKUP_FILE}" | cut -f1)
+        log_info "Backup size: ${BACKUP_SIZE}"
+        
+        # Verify backup integrity
+        if [ -s "${BACKUP_FILE}" ]; then
+          log_info "Backup verification: OK"
+        else
+          log_warning "Backup file exists but appears empty!"
+        fi
         
         # Rotate old backups
         BACKUP_COUNT=$(find "${BACKUP_DIR}" -name "meowcoin-backup-*.dat" | wc -l)
@@ -59,7 +68,7 @@ while true; do
           find "${BACKUP_DIR}" -name "meowcoin-backup-*.dat" | sort | head -n $(($BACKUP_COUNT - $MAX_BACKUPS)) | xargs rm -f
         fi
       else
-        log_warning "Backup failed"
+        log_error "Backup failed with error: $(cat /tmp/backup_error.log)"
       fi
     else
       log_info "Skipping backup while blockchain is syncing"

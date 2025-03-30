@@ -26,18 +26,39 @@ while true; do
     # Get blockchain info
     BLOCKCHAIN_INFO=$(gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblockchaininfo 2>/dev/null || echo "{}")
     NETWORK_INFO=$(gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getnetworkinfo 2>/dev/null || echo "{}")
+    MINING_INFO=$(gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getmininginfo 2>/dev/null || echo "{}")
     
     # Parse blockchain info
     BLOCKS=$(echo "$BLOCKCHAIN_INFO" | jq -r ".blocks // 0")
     HEADERS=$(echo "$BLOCKCHAIN_INFO" | jq -r ".headers // 0")
     VERIFICATION_PROGRESS=$(echo "$BLOCKCHAIN_INFO" | jq -r ".verificationprogress // 0")
-    # Fix: use printf directly instead of piping to bc
-    PROGRESS_PCT=$(printf "%.2f" $(echo "$VERIFICATION_PROGRESS * 100" | bc -l 2>/dev/null) 2>/dev/null || echo "0.00")
+    # Use awk for calculation
+    PROGRESS_PCT=$(awk "BEGIN { printf \"%.2f\", $VERIFICATION_PROGRESS * 100 }" 2>/dev/null || echo "0.00")
     
     # Parse network info
     VERSION=$(echo "$NETWORK_INFO" | jq -r ".version // \"Unknown\"")
     SUBVERSION=$(echo "$NETWORK_INFO" | jq -r ".subversion // \"Unknown\"")
     CONNECTIONS=$(echo "$NETWORK_INFO" | jq -r ".connections // 0")
+    
+    # Parse mining info
+    DIFFICULTY=$(echo "$MINING_INFO" | jq -r ".difficulty // 0")
+    HASHRATE=$(echo "$MINING_INFO" | jq -r ".networkhashps // 0")
+    
+    # Get latest block time
+    if [ "$BLOCKS" -gt 0 ]; then
+      BEST_BLOCK_HASH=$(echo "$BLOCKCHAIN_INFO" | jq -r ".bestblockhash // \"\"")
+      if [ -n "$BEST_BLOCK_HASH" ]; then
+        BLOCK_INFO=$(gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblock "$BEST_BLOCK_HASH" 2>/dev/null || echo "{}")
+        LATEST_BLOCK_TIME=$(echo "$BLOCK_INFO" | jq -r ".time // 0")
+        TRANSACTIONS=$(echo "$BLOCK_INFO" | jq -r ".tx | length // 0")
+      else
+        LATEST_BLOCK_TIME=0
+        TRANSACTIONS=0
+      fi
+    else
+      LATEST_BLOCK_TIME=0
+      TRANSACTIONS=0
+    fi
     
     # Determine status
     if [ "$BLOCKS" -lt "$HEADERS" ]; then
@@ -52,8 +73,12 @@ while true; do
     MEM_INFO=$(free -m | grep Mem)
     MEM_TOTAL=$(echo "$MEM_INFO" | awk '{print $2}')
     MEM_USED=$(echo "$MEM_INFO" | awk '{print $3}')
-    # Fix: handle decimal calculation with printf instead of bc
-    MEM_PERCENT=$(printf "%.2f" $(echo "scale=2; $MEM_USED * 100 / $MEM_TOTAL" | bc 2>/dev/null) 2>/dev/null || echo "0.00")
+    # Use awk for calculation with validation
+    if [ "$MEM_TOTAL" -gt 0 ]; then
+      MEM_PERCENT=$(awk "BEGIN { printf \"%.2f\", $MEM_USED * 100 / $MEM_TOTAL }" 2>/dev/null || echo "0.00")
+    else
+      MEM_PERCENT="0.00"
+    fi
     
     # Get disk space info
     DISK_INFO=$(df -h "${MEOWCOIN_DATA}" | tail -n 1)
@@ -76,6 +101,10 @@ while true; do
       --arg disksize "$DISK_SIZE" \
       --arg diskused "$DISK_USED" \
       --arg diskpercent "$DISK_PERCENT" \
+      --argjson difficulty "$DIFFICULTY" \
+      --argjson hashrate "$HASHRATE" \
+      --argjson latestBlockTime "$LATEST_BLOCK_TIME" \
+      --argjson transactions "$TRANSACTIONS" \
       --arg time "$(date '+%Y-%m-%d %H:%M:%S')" \
       '{
         "status": $status,
@@ -88,6 +117,12 @@ while true; do
           "version": $version,
           "subversion": $subversion,
           "connections": $connections
+        },
+        "network": {
+          "difficulty": $difficulty,
+          "hashrate": $hashrate,
+          "latestBlockTime": $latestBlockTime,
+          "transactions": $transactions
         },
         "system": {
           "memory": {
