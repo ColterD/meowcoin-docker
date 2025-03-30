@@ -38,7 +38,7 @@ while true; do
   # Check if daemon is running before attempting backup
   if pgrep -x "meowcoind" > /dev/null; then
     # Check if blockchain is syncing
-    SYNC_STATUS=$(su-exec meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblockchaininfo 2>/dev/null | jq -r '.initialblockdownload // true')
+    SYNC_STATUS=$(gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblockchaininfo 2>/dev/null | jq -r '.initialblockdownload // true')
     
     # Only backup if not syncing
     if [ "$SYNC_STATUS" != "true" ]; then
@@ -48,23 +48,9 @@ while true; do
       TIMESTAMP=$(date +%Y%m%d-%H%M%S)
       BACKUP_FILE="${BACKUP_DIR}/meowcoin-backup-${TIMESTAMP}.dat"
       
-<<<<<<< HEAD
-      # Create backup with enhanced error logging
-      if gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" backupwallet "${BACKUP_FILE}" 2> /tmp/backup_error.log; then
-=======
       # Create backup
-      if su-exec meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" backupwallet "${BACKUP_FILE}" 2>/dev/null; then
->>>>>>> parent of 0706e65 (refactor)
+      if gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" backupwallet "${BACKUP_FILE}" 2>/dev/null; then
         log_info "Backup created successfully: ${BACKUP_FILE}"
-        BACKUP_SIZE=$(du -h "${BACKUP_FILE}" | cut -f1)
-        log_info "Backup size: ${BACKUP_SIZE}"
-        
-        # Verify backup integrity
-        if [ -s "${BACKUP_FILE}" ]; then
-          log_info "Backup verification: OK"
-        else
-          log_warning "Backup file exists but appears empty!"
-        fi
         
         # Rotate old backups
         BACKUP_COUNT=$(find "${BACKUP_DIR}" -name "meowcoin-backup-*.dat" | wc -l)
@@ -73,7 +59,7 @@ while true; do
           find "${BACKUP_DIR}" -name "meowcoin-backup-*.dat" | sort | head -n $(($BACKUP_COUNT - $MAX_BACKUPS)) | xargs rm -f
         fi
       else
-        log_error "Backup failed with error: $(cat /tmp/backup_error.log)"
+        log_warning "Backup failed"
       fi
     else
       log_info "Skipping backup while blockchain is syncing"

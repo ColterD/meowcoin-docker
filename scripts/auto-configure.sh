@@ -1,109 +1,115 @@
 #!/bin/bash
+set -e
 
-# Logging function
-log() {
-    local level="$1"
-    local msg="$2"
-    local timestamp=$(date -u '+%Y-%m-%d %H:%M:%S')
-    echo "[$timestamp] [$level] $msg"
-}
+# Source helper functions
+source /scripts/functions.sh
 
-# Check if running as meowcoin user
-if [ "$(id -u)" -ne 10000 ]; then
-    log "ERROR" "Script must run as meowcoin user (UID 10000)"
-    exit 1
-fi
-
-log "INFO" "Auto-configuring Meowcoin settings..."
+log_info "Auto-configuring Meowcoin settings..."
 
 # Detect system memory
-TOTAL_MEMORY=$(free -m | awk '/^Mem:/{print $2}')
-log "INFO" "Detected system memory: ${TOTAL_MEMORY}MB"
-
-# Adjust dbcache based on memory (e.g., 25% of total memory, min 512MB, max 8192MB)
 if [ "$SYSTEM_MEMORY" = "auto" ]; then
-    DBCACHE=$((TOTAL_MEMORY / 4))
-    if [ "$DBCACHE" -lt 512 ]; then DBCACHE=512; fi
-    if [ "$DBCACHE" -gt 8192 ]; then DBCACHE=8192; fi
+  TOTAL_MEM=$(free -m | awk '/^Mem:/{print $2}')
+  log_info "Detected system memory: ${TOTAL_MEM}MB"
+  
+  # Configure dbcache based on available memory (25% of total memory up to 1GB)
+  DB_CACHE=$(( TOTAL_MEM / 4 ))
+  if [ $DB_CACHE -gt 1024 ]; then
+    DB_CACHE=1024
+  fi
+  
+  # Configure maxmempool based on available memory (15% of total memory up to 500MB)
+  MAX_MEMPOOL=$(( TOTAL_MEM / 7 ))
+  if [ $MAX_MEMPOOL -gt 500 ]; then
+    MAX_MEMPOOL=500
+  fi
 else
-    DBCACHE="$SYSTEM_MEMORY"
+  # Manual configuration
+  TOTAL_MEM=$SYSTEM_MEMORY
+  DB_CACHE=$(( TOTAL_MEM / 4 ))
+  MAX_MEMPOOL=$(( TOTAL_MEM / 7 ))
 fi
 
-# Adjust maxconnections (e.g., 100 default, scale with memory if auto)
+# Determine optimal connection count based on available memory
 if [ "$MAX_CONNECTIONS" = "auto" ]; then
-    MAX_CONN=$((TOTAL_MEMORY / 322))  # Rough scale: 1 connection per 322MB
-    if [ "$MAX_CONN" -lt 50 ]; then MAX_CONN=50; fi
-    if [ "$MAX_CONN" -gt 200 ]; then MAX_CONN=200; fi
+  if [ $TOTAL_MEM -lt 1024 ]; then
+    # Less than 1GB RAM
+    CONNECTIONS=15
+  elif [ $TOTAL_MEM -lt 4096 ]; then
+    # Less than 4GB RAM
+    CONNECTIONS=30
+  else
+    # 4GB+ RAM
+    CONNECTIONS=50
+  fi
 else
-    MAX_CONN="$MAX_CONNECTIONS"
+  CONNECTIONS=$MAX_CONNECTIONS
 fi
 
-# Ensure .meowcoin directory exists and is writable
-MEOWCOIN_DIR="/data/.meowcoin"
-RPC_PASS_FILE="${RPC_PASSWORD_FILE:-/data/.meowcoin/rpc.pass}"
-if [ ! -d "$MEOWCOIN_DIR" ]; then
-    mkdir -p "$MEOWCOIN_DIR" || { log "ERROR" "Failed to create $MEOWCOIN_DIR"; exit 1; }
-fi
-if [ ! -w "$MEOWCOIN_DIR" ]; then
-    log "ERROR" "$MEOWCOIN_DIR is not writable by meowcoin user"
-    exit 1
-fi
+# Generate random RPC credentials
+RPC_USER="meowcoin"
+RPC_PASS=$(openssl rand -hex 32)
 
-<<<<<<< HEAD
-# Generate RPC password if not exists
-if [ ! -f "$RPC_PASS_FILE" ]; then
-    log "INFO" "Generating RPC password..."
-    openssl rand -hex 32 > "$RPC_PASS_FILE" 2>/dev/null || {
-        log "ERROR" "Failed to generate RPC password at $RPC_PASS_FILE"
-        exit 1
-    }
-    chmod 600 "$RPC_PASS_FILE"
-else
-    log "INFO" "Using existing RPC password file: $RPC_PASS_FILE"
-fi
-=======
 # Save RPC password to secure location
+mkdir -p "${MEOWCOIN_DATA}/.meowcoin"
 echo $RPC_PASS > "${MEOWCOIN_DATA}/.meowcoin/rpc.pass"
 chmod 600 "${MEOWCOIN_DATA}/.meowcoin/rpc.pass"
->>>>>>> parent of 0706e65 (refactor)
 
-# Update configuration file
-CONFIG_FILE="/data/.meowcoin/meowcoin.conf"
-cat << EOF > "$CONFIG_FILE"
-# Auto-generated on $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+# Generate optimized configuration
+cat > "${MEOWCOIN_CONFIG}/meowcoin.conf" << EOF
+# Meowcoin Configuration
+# Auto-generated on $(date)
+
+# Network settings
 server=1
 listen=1
-txindex=${ENABLE_TXINDEX:-1}
-upnp=0
-dbcache=$DBCACHE
-maxmempool=500
-maxconnections=$MAX_CONN
-maxreceivebuffer=5000
-maxsendbuffer=1000
-mempoolexpiry=72
-min-relay-tx-fee=0.00001
-limitfreerelay=5
-rpcuser=meowcoin
-rpcpasswordfile=$RPC_PASS_FILE
+txindex=${ENABLE_TXINDEX}
+
+# Performance settings
+dbcache=${DB_CACHE}
+maxmempool=${MAX_MEMPOOL}
+maxconnections=${CONNECTIONS}
+
+# RPC settings
+rpcuser=${RPC_USER}
+rpcpassword=${RPC_PASS}
 rpcallowip=127.0.0.1/32
 rpcbind=127.0.0.1
 rpcport=9766
+
+# For internal container access
+rpcallowip=172.16.0.0/12
+rpcallowip=192.168.0.0/16
+rpcallowip=10.0.0.0/8
+
+# Logging settings
 logtimestamps=1
-printtoconsole=0
-logfile=/data/meowcoin.log
+printtoconsole=1
+
+# Apply any custom options from environment
+${MEOWCOIN_OPTIONS}
 EOF
 
-<<<<<<< HEAD
-log "INFO" "Configuration written to $CONFIG_FILE"
-log "INFO" "Auto-configuration complete."
-=======
 log_info "Configuration complete. Applied settings:"
 log_info "- DB Cache: ${DB_CACHE}MB"
 log_info "- Max Mempool: ${MAX_MEMPOOL}MB"
 log_info "- Max Connections: ${CONNECTIONS}"
 
 # Setup nginx for web interface
-cat > /etc/nginx/http.d/default.conf << EOF
+# Check for Debian vs Alpine paths for nginx
+if [ -d "/etc/nginx/conf.d" ]; then
+    NGINX_CONF_PATH="/etc/nginx/conf.d/default.conf"
+elif [ -d "/etc/nginx/sites-available" ]; then
+    NGINX_CONF_PATH="/etc/nginx/sites-available/default"
+    NGINX_ENABLED_PATH="/etc/nginx/sites-enabled/default"
+elif [ -d "/etc/nginx/http.d" ]; then
+    NGINX_CONF_PATH="/etc/nginx/http.d/default.conf"
+else
+    mkdir -p /etc/nginx/conf.d
+    NGINX_CONF_PATH="/etc/nginx/conf.d/default.conf"
+fi
+
+# Write nginx configuration
+cat > "${NGINX_CONF_PATH}" << EOF
 server {
     listen 8080 default_server;
     listen [::]:8080 default_server;
@@ -122,5 +128,9 @@ server {
 }
 EOF
 
+# Create symlink if using sites-enabled
+if [ ! -z "${NGINX_ENABLED_PATH}" ] && [ ! -f "${NGINX_ENABLED_PATH}" ]; then
+    ln -sf "${NGINX_CONF_PATH}" "${NGINX_ENABLED_PATH}"
+fi
+
 log_info "Web server configured on port 8080"
->>>>>>> parent of 0706e65 (refactor)

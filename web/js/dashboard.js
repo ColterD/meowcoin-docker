@@ -11,10 +11,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const diskBarEl = document.getElementById('disk-bar');
     const diskTextEl = document.getElementById('disk-text');
     const lastUpdatedEl = document.getElementById('last-updated');
-    const transactionsEl = document.getElementById('transactions');
-    const hashrateEl = document.getElementById('hashrate');
-    const difficultyEl = document.getElementById('difficulty');
-    const latestBlockTimeEl = document.getElementById('latest-block-time');
     
     // Status mapping
     const statusMap = {
@@ -66,25 +62,13 @@ document.addEventListener('DOMContentLoaded', function() {
               memoryBarEl.style.backgroundColor = 'var(--danger-color)';
             } else if (memPercent > 70) {
               memoryBarEl.style.backgroundColor = 'var(--warning-color)';
-            } else {
-              memoryBarEl.style.backgroundColor = 'var(--secondary-color)';
             }
             
             if (diskPercent > 90) {
               diskBarEl.style.backgroundColor = 'var(--danger-color)';
             } else if (diskPercent > 70) {
               diskBarEl.style.backgroundColor = 'var(--warning-color)';
-            } else {
-              diskBarEl.style.backgroundColor = 'var(--secondary-color)';
             }
-          }
-          
-          // Update network stats
-          if (data.network) {
-            transactionsEl.textContent = parseInt(data.network.transactions).toLocaleString();
-            hashrateEl.textContent = formatHashrate(data.network.hashrate);
-            difficultyEl.textContent = formatDifficulty(data.network.difficulty);
-            latestBlockTimeEl.textContent = formatBlockTime(data.network.latestBlockTime);
           }
           
           // Update timestamp
@@ -99,26 +83,6 @@ document.addEventListener('DOMContentLoaded', function() {
           statusText.textContent = 'Error';
           statusLight.className = 'status-light error';
         });
-    }
-    
-    // Format hashrate
-    function formatHashrate(hashrate) {
-      if (hashrate > 1e9) return (hashrate / 1e9).toFixed(2) + ' GH/s';
-      if (hashrate > 1e6) return (hashrate / 1e6).toFixed(2) + ' MH/s';
-      if (hashrate > 1e3) return (hashrate / 1e3).toFixed(2) + ' KH/s';
-      return hashrate.toFixed(2) + ' H/s';
-    }
-    
-    // Format difficulty
-    function formatDifficulty(difficulty) {
-      return parseFloat(difficulty).toLocaleString(undefined, {maximumFractionDigits: 2});
-    }
-    
-    // Format block time
-    function formatBlockTime(timestamp) {
-      if (!timestamp || timestamp == 0) return 'N/A';
-      const blockTime = new Date(timestamp * 1000);
-      return blockTime.toLocaleString();
     }
     
     // Initial update
