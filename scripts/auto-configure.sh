@@ -49,6 +49,7 @@ if [ ! -w "$MEOWCOIN_DIR" ]; then
     exit 1
 fi
 
+<<<<<<< HEAD
 # Generate RPC password if not exists
 if [ ! -f "$RPC_PASS_FILE" ]; then
     log "INFO" "Generating RPC password..."
@@ -60,6 +61,11 @@ if [ ! -f "$RPC_PASS_FILE" ]; then
 else
     log "INFO" "Using existing RPC password file: $RPC_PASS_FILE"
 fi
+=======
+# Save RPC password to secure location
+echo $RPC_PASS > "${MEOWCOIN_DATA}/.meowcoin/rpc.pass"
+chmod 600 "${MEOWCOIN_DATA}/.meowcoin/rpc.pass"
+>>>>>>> parent of 0706e65 (refactor)
 
 # Update configuration file
 CONFIG_FILE="/data/.meowcoin/meowcoin.conf"
@@ -87,5 +93,34 @@ printtoconsole=0
 logfile=/data/meowcoin.log
 EOF
 
+<<<<<<< HEAD
 log "INFO" "Configuration written to $CONFIG_FILE"
 log "INFO" "Auto-configuration complete."
+=======
+log_info "Configuration complete. Applied settings:"
+log_info "- DB Cache: ${DB_CACHE}MB"
+log_info "- Max Mempool: ${MAX_MEMPOOL}MB"
+log_info "- Max Connections: ${CONNECTIONS}"
+
+# Setup nginx for web interface
+cat > /etc/nginx/http.d/default.conf << EOF
+server {
+    listen 8080 default_server;
+    listen [::]:8080 default_server;
+    
+    root /var/www/html;
+    index index.html;
+    
+    location / {
+        try_files \$uri \$uri/ =404;
+    }
+    
+    location /api {
+        alias /var/www/html/api;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+}
+EOF
+
+log_info "Web server configured on port 8080"
+>>>>>>> parent of 0706e65 (refactor)

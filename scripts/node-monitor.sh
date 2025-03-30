@@ -24,16 +24,25 @@ while true; do
   # Check if daemon is running
   if pgrep -x "meowcoind" > /dev/null; then
     # Get blockchain info
+<<<<<<< HEAD
     BLOCKCHAIN_INFO=$(gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblockchaininfo 2>/dev/null || echo "{}")
     NETWORK_INFO=$(gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getnetworkinfo 2>/dev/null || echo "{}")
     MINING_INFO=$(gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getmininginfo 2>/dev/null || echo "{}")
+=======
+    BLOCKCHAIN_INFO=$(su-exec meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblockchaininfo 2>/dev/null || echo "{}")
+    NETWORK_INFO=$(su-exec meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getnetworkinfo 2>/dev/null || echo "{}")
+>>>>>>> parent of 0706e65 (refactor)
     
     # Parse blockchain info
     BLOCKS=$(echo "$BLOCKCHAIN_INFO" | jq -r ".blocks // 0")
     HEADERS=$(echo "$BLOCKCHAIN_INFO" | jq -r ".headers // 0")
     VERIFICATION_PROGRESS=$(echo "$BLOCKCHAIN_INFO" | jq -r ".verificationprogress // 0")
+<<<<<<< HEAD
     # Use awk for calculation
     PROGRESS_PCT=$(awk "BEGIN { printf \"%.2f\", $VERIFICATION_PROGRESS * 100 }" 2>/dev/null || echo "0.00")
+=======
+    PROGRESS_PCT=$(echo "$VERIFICATION_PROGRESS * 100" | bc -l | xargs printf "%.2f" 2>/dev/null || echo "0.00")
+>>>>>>> parent of 0706e65 (refactor)
     
     # Parse network info
     VERSION=$(echo "$NETWORK_INFO" | jq -r ".version // \"Unknown\"")
@@ -73,12 +82,16 @@ while true; do
     MEM_INFO=$(free -m | grep Mem)
     MEM_TOTAL=$(echo "$MEM_INFO" | awk '{print $2}')
     MEM_USED=$(echo "$MEM_INFO" | awk '{print $3}')
+<<<<<<< HEAD
     # Use awk for calculation with validation
     if [ "$MEM_TOTAL" -gt 0 ]; then
       MEM_PERCENT=$(awk "BEGIN { printf \"%.2f\", $MEM_USED * 100 / $MEM_TOTAL }" 2>/dev/null || echo "0.00")
     else
       MEM_PERCENT="0.00"
     fi
+=======
+    MEM_PERCENT=$(echo "scale=2; $MEM_USED * 100 / $MEM_TOTAL" | bc)
+>>>>>>> parent of 0706e65 (refactor)
     
     # Get disk space info
     DISK_INFO=$(df -h "${MEOWCOIN_DATA}" | tail -n 1)

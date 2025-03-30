@@ -16,15 +16,9 @@ log_error() {
 # Function to get Meowcoin version
 get_version() {
   if [ -f "/usr/local/bin/meowcoind" ]; then
-    if [ -x "/usr/local/bin/meowcoind" ]; then
-      /usr/local/bin/meowcoind --version 2>/dev/null | head -n 1 | awk '{print $NF}' || echo "Error getting version"
-    else
-      echo "Binary not executable"
-      chmod +x /usr/local/bin/meowcoind 2>/dev/null || echo "Failed to set executable permission"
-    fi
+    /usr/local/bin/meowcoind --version 2>/dev/null | head -n 1 | awk '{print $NF}' || echo "Unknown"
   else
     echo "Binary not found"
-    find / -name "meowcoind" -type f 2>/dev/null | head -n 5 || echo "No meowcoind binary found on system"
   fi
 }
 
@@ -46,14 +40,7 @@ handle_shutdown() {
   
   # Stop the daemon gracefully
   log_info "Stopping Meowcoin daemon..."
-  if pgrep -x "meowcoind" > /dev/null; then
-    gosu meowcoin /usr/local/bin/meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" stop || {
-      log_warning "Failed to stop daemon gracefully, attempting to kill process"
-      pkill -15 meowcoind
-    }
-  else
-    log_warning "Meowcoin daemon not running, nothing to stop"
-  fi
+  su-exec meowcoin /usr/local/bin/meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" stop
   
   # Wait for the daemon to stop
   local count=0
@@ -62,14 +49,13 @@ handle_shutdown() {
     count=$((count + 1))
     if [ $count -ge 30 ]; then
       log_warning "Forcing Meowcoin daemon shutdown after 30 seconds timeout"
-      pkill -9 meowcoind
       break
     fi
   done
   
   # Stop nginx
   log_info "Stopping web server..."
-  nginx -s quit || pkill -15 nginx
+  nginx -s quit
   
   # Exit
   log_info "Shutdown complete"

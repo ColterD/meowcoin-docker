@@ -11,7 +11,7 @@ if ! pgrep -x "meowcoind" > /dev/null; then
 fi
 
 # Check if Meowcoin daemon is responsive
-if ! timeout 5 gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblockchaininfo > /dev/null 2>&1; then
+if ! timeout 5 su-exec meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblockchaininfo > /dev/null 2>&1; then
   log_error "Meowcoin daemon is not responsive"
   exit 1
 fi
