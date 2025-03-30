@@ -66,6 +66,9 @@ Desktop.ini
 /backend/dist/
 /backend/.cache/
 
+# Shared module build
+/shared/dist/
+
 # Meowcoin specific
 /data/
 /config/*
@@ -79,3 +82,8 @@ temp/
 
 # Test files
 .jest-cache
+
+# Security sensitive files
+*.pem
+*.key
+*.crt

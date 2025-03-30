@@ -4,12 +4,16 @@ import { useWebSocketListener } from '../../hooks/useWebSocketListener';
 import { DiskUsage as DiskUsageType } from '../../api/nodeApi';
 import styles from './DiskUsage.module.css';
 import { formatBytes } from '../../utils/formatters';
+import { useWebSocket } from '../../contexts/WebSocketContext';
 
 export default function DiskUsage() {
   const queryClient = useQueryClient();
+  const { connected, connectionError, reconnect } = useWebSocket();
   
-  const { data, isLoading, error } = useQuery('diskUsage', getDiskUsage, {
-    refetchInterval: 60000 // Refresh every minute
+  const { data, isLoading, error, refetch } = useQuery('diskUsage', getDiskUsage, {
+    refetchInterval: connected ? false : 60000, // Only poll if WebSocket is disconnected
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 30000)
   });
   
   // Real-time updates
@@ -26,16 +30,36 @@ export default function DiskUsage() {
     );
   }
   
-  if (error) {
+  // Handle WebSocket connection errors
+  if (connectionError && !data) {
     return (
       <section className="status-card">
         <h2>Disk Usage Details</h2>
-        <div>Error loading disk usage: {error instanceof Error ? error.message : 'Unknown error'}</div>
+        <div className="error-message">
+          <p>Error connecting to server: {connectionError}</p>
+          <button className="btn btn-primary" onClick={reconnect}>
+            Reconnect
+          </button>
+        </div>
       </section>
     );
   }
   
-  if (!data || !data.paths) {
+  if (error) {
+    return (
+      <section className="status-card">
+        <h2>Disk Usage Details</h2>
+        <div className="error-message">
+          <p>Error loading disk usage: {error instanceof Error ? error.message : 'Unknown error'}</p>
+          <button className="btn btn-primary" onClick={() => refetch()}>
+            Try Again
+          </button>
+        </div>
+      </section>
+    );
+  }
+  
+  if (!data || !data.paths || data.paths.length === 0) {
     return (
       <section className="status-card">
         <h2>Disk Usage Details</h2>

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Enable strict error handling
+set -euo pipefail
+
 # Load helper functions
 source /scripts/functions.sh
 
@@ -20,7 +23,7 @@ fi
 
 # Try to get blockchain info (if daemon is running)
 if [ $EXIT_STATUS -eq 0 ]; then
-    if ! gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblockchaininfo &>/dev/null; then
+    if ! timeout 10s gosu meowcoin meowcoin-cli -conf="${MEOWCOIN_CONFIG}/meowcoin.conf" getblockchaininfo &>/dev/null; then
         log_error "Meowcoin RPC is not responding"
         EXIT_STATUS=1
     fi
@@ -29,6 +32,7 @@ fi
 # Check system resources
 # Basic disk space check
 if [ -d "$MEOWCOIN_DATA" ]; then
+    # Use a safer approach with no shell expansion
     DISK_USAGE=$(df -h "$MEOWCOIN_DATA" | awk 'NR==2 {print $5}' | tr -d '%')
     if [ "$DISK_USAGE" -gt 90 ]; then
         log_warn "Disk usage is high: ${DISK_USAGE}%"

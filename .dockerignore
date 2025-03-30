@@ -10,6 +10,8 @@ yarn-debug.log
 yarn-error.log
 **/node_modules
 **/.npm
+package-lock.json
+yarn.lock
 
 # Development files
 **/.env.local
@@ -63,3 +65,8 @@ config/
 **/*.bak
 **/tmp
 **/temp
+
+# Security sensitive files
+**/*.pem
+**/*.key
+**/*.crt

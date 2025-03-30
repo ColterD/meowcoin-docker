@@ -5,15 +5,18 @@
     "private": true,
     "workspaces": [
       "frontend",
-      "backend"
+      "backend",
+      "shared"
     ],
     "scripts": {
+      "prepare": "npm run build:shared",
+      "build:shared": "tsc -p shared/tsconfig.json",
       "dev:frontend": "cd frontend && npm run dev",
       "dev:backend": "cd backend && npm run dev",
-      "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+      "dev": "npm run build:shared && concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
       "build:frontend": "cd frontend && npm run build",
       "build:backend": "cd backend && npm run build",
-      "build": "npm run build:backend && npm run build:frontend",
+      "build": "npm run build:shared && npm run build:backend && npm run build:frontend",
       "start": "cd backend && npm start",
       "lint": "npm run lint:frontend && npm run lint:backend",
       "lint:frontend": "cd frontend && npm run lint",
@@ -21,14 +24,16 @@
       "test": "npm run test:frontend && npm run test:backend",
       "test:frontend": "cd frontend && npm test || echo \"No tests in frontend\"",
       "test:backend": "cd backend && npm test || echo \"No tests in backend\"",
-      "postinstall": "npm run build"
+      "clean": "rimraf node_modules **/*/node_modules **/*/dist */dist"
     },
     "devDependencies": {
       "concurrently": "^8.2.2",
-      "cross-env": "^7.0.3"
+      "cross-env": "^7.0.3",
+      "rimraf": "^5.0.5",
+      "typescript": "^5.2.2"
     },
     "engines": {
       "node": ">=16",
       "npm": ">=8"
     }
-  }
+}

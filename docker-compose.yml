@@ -9,7 +9,8 @@ services:
     volumes:
       - meowcoin-data:/data
       - ./config:/config
-      - /var/run/docker.sock:/var/run/docker.sock
+      # Limit Docker socket permissions with read-only flag
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - "${RPC_PORT:-9766}:9766"  # RPC port
       - "${P2P_PORT:-8788}:8788"  # P2P port
@@ -24,6 +25,12 @@ services:
       - AUTO_UPDATE=${AUTO_UPDATE:-security}
       - BACKUP_ENABLED=${BACKUP_ENABLED:-true}
       - BACKUP_INTERVAL=${BACKUP_INTERVAL:-daily}
+    # Add resource limits to prevent container from consuming excessive resources
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
     healthcheck:
       test: ["CMD", "/scripts/healthcheck.sh"]
       interval: 1m
@@ -35,6 +42,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # Add security options
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   meowcoin-data:

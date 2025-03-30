@@ -6,6 +6,7 @@ interface WebSocketContextType {
   socket: Socket | null;
   connected: boolean;
   reconnect: () => void;
+  connectionError: string | null;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -17,12 +18,22 @@ interface WebSocketProviderProps {
 export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 10;
   
+  // Function to calculate exponential backoff delay
+  const getBackoffDelay = useCallback((attempt: number) => {
+    // Start with 1000ms, double each time, cap at 30 seconds
+    return Math.min(1000 * Math.pow(2, attempt), 30000);
+  }, []);
+  
   // Function to create and set up socket connection
   const setupSocket = useCallback(() => {
+    // Clear any previous error message
+    setConnectionError(null);
+    
     // Close existing connection if any
     if (socketRef.current) {
       socketRef.current.disconnect();
@@ -48,26 +59,32 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
       console.log('WebSocket connected');
       setConnected(true);
       reconnectAttemptsRef.current = 0;
+      setConnectionError(null);
     });
     
     socketIo.on('disconnect', (reason) => {
       console.log(`WebSocket disconnected: ${reason}`);
       setConnected(false);
       
-      // If server disconnect, attempt to reconnect automatically
+      // If server disconnect, attempt to reconnect automatically with exponential backoff
       if (reason === 'io server disconnect') {
         setTimeout(() => {
           if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+            const delay = getBackoffDelay(reconnectAttemptsRef.current);
+            console.log(`Attempting reconnect in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`);
             reconnectAttemptsRef.current++;
             socketIo.connect();
+          } else {
+            setConnectionError(`Failed to reconnect after ${maxReconnectAttempts} attempts. Please try manually reconnecting.`);
           }
-        }, 1000);
+        }, getBackoffDelay(reconnectAttemptsRef.current));
       }
     });
     
     socketIo.on('connect_error', (error) => {
       console.error('Connection error:', error);
       setConnected(false);
+      setConnectionError(`Connection error: ${error.message}`);
     });
     
     // Set socket state and ref
@@ -75,12 +92,13 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     setSocket(socketIo);
     
     return socketIo;
-  }, []);
+  }, [getBackoffDelay]);
   
   // Function to manually reconnect
   const reconnect = useCallback(() => {
     console.log('Manually reconnecting WebSocket...');
     reconnectAttemptsRef.current = 0;
+    setConnectionError(null);
     setupSocket();
   }, [setupSocket]);
   
@@ -103,7 +121,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
   }, [setupSocket]);
   
   return (
-    <WebSocketContext.Provider value={{ socket, connected, reconnect }}>
+    <WebSocketContext.Provider value={{ socket, connected, reconnect, connectionError }}>
       {children}
     </WebSocketContext.Provider>
   );

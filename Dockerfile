@@ -19,6 +19,7 @@ WORKDIR /app/backend
 COPY backend/package*.json ./
 RUN npm ci
 COPY backend/ ./
+COPY shared/ /app/shared/
 RUN npm run build
 
 # Build stage for Meowcoin binaries
@@ -72,7 +73,7 @@ COPY --from=frontend-builder /app/frontend/dist /var/www/html
 COPY --from=backend-builder /app/backend/dist /app/backend
 COPY --from=backend-builder /app/backend/package*.json /app/backend/
 WORKDIR /app/backend
-RUN npm ci --production
+RUN npm ci --omit=dev --production
 
 # Add scripts and configs
 COPY scripts/functions.sh /scripts/
@@ -82,7 +83,7 @@ COPY scripts/healthcheck.sh /scripts/
 COPY scripts/backup-manager.sh /scripts/
 RUN chmod +x /scripts/*.sh
 
-# Create meowcoin user
+# Create meowcoin user with specific UID/GID for better security
 RUN groupadd -g 10000 meowcoin && \
     useradd -u 10000 -g meowcoin -s /bin/bash -m meowcoin && \
     mkdir -p /data /config /var/www/html/api && \

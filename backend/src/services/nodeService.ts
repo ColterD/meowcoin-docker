@@ -19,10 +19,33 @@ const MEOWCOIN_CONFIG = environment.meowcoinConfig;
 const MEOWCOIN_DATA = environment.meowcoinData;
 const RPC_CONF_PATH = path.join(MEOWCOIN_CONFIG, 'meowcoin.conf');
 
-// Helper to sanitize command parameters
+// Helper to sanitize command parameters - improved with stricter whitelist
 function sanitizeParam(param: string): string {
-  // Allow only alphanumeric characters, periods, hyphens, and underscores
-  return param.replace(/[^a-zA-Z0-9\.\-\_]/g, '');
+  // Only allow alphanumeric characters, periods, hyphens, and underscores
+  const sanitized = param.replace(/[^a-zA-Z0-9\.\-\_]/g, '');
+  
+  // Additional check to ensure the sanitized string isn't empty
+  if (!sanitized) {
+    throw new Error('Invalid parameter: sanitization resulted in empty string');
+  }
+  
+  return sanitized;
+}
+
+// Validate path to prevent directory traversal and other issues
+function validatePath(inputPath: string): string {
+  const normalized = path.normalize(inputPath);
+  
+  // Ensure the path doesn't contain any suspicious sequences
+  if (
+    normalized.includes('..') || 
+    normalized.includes('/') && !normalized.startsWith('/') ||
+    /\s/.test(normalized) // No whitespace allowed
+  ) {
+    throw new Error(`Invalid path: ${inputPath}`);
+  }
+  
+  return normalized;
 }
 
 // Helper to read RPC credentials safely
@@ -59,12 +82,20 @@ async function getRpcCredentials(): Promise<{ user: string; password: string }> 
 // Execute RPC commands with secure credential handling
 async function executeRpcCommand<T>(command: string, params: any[] = []): Promise<T> {
   try {
+    // Validate command
+    if (!/^[a-zA-Z0-9]+$/.test(command)) {
+      throw new Error(`Invalid RPC command format: ${command}`);
+    }
+    
     const credentials = await getRpcCredentials();
     const { user, password } = credentials;
     
+    // Generate a secure random request ID
+    const requestId = `meowcoin-dashboard-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+    
     const response = await axios.post<{ result: T; error: any }>('http://localhost:9766', {
       jsonrpc: '1.0',
-      id: `meowcoin-dashboard-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`,
+      id: requestId,
       method: command,
       params
     }, {
@@ -91,7 +122,16 @@ async function executeCli(command: string): Promise<string> {
   try {
     // Sanitize the command to prevent injection
     const sanitizedCommand = sanitizeParam(command);
-    const { stdout } = await execAsync(`gosu meowcoin meowcoin-cli -conf="${RPC_CONF_PATH}" ${sanitizedCommand}`);
+    
+    // Additional validation
+    if (!sanitizedCommand || sanitizedCommand !== command) {
+      throw new Error(`Invalid CLI command: ${command}`);
+    }
+    
+    // Use path.resolve for proper path resolution
+    const configPath = path.resolve(RPC_CONF_PATH);
+    
+    const { stdout } = await execAsync(`gosu meowcoin meowcoin-cli -conf="${configPath}" ${sanitizedCommand}`);
     return stdout.trim();
   } catch (error) {
     console.error(`Error executing CLI command ${command}:`, error);
@@ -139,6 +179,12 @@ export async function getNodeVersion(): Promise<string> {
 // Check for version updates - safe from injection
 export async function checkForVersionUpdate(currentVersion: string): Promise<{ available: boolean; version: string }> {
   try {
+    // Validate currentVersion format
+    if (!/^Meow-[\d.]+$/.test(currentVersion)) {
+      console.warn(`Unexpected version format: ${currentVersion}`);
+      return { available: false, version: '' };
+    }
+    
     // Extract clean version (e.g., Meow-2.0.5 to 2.0.5)
     const cleanVersion = currentVersion.replace(/^Meow-/, '').split('.').slice(0, 3).join('.');
     
@@ -354,6 +400,10 @@ async function getDiskInfo(): Promise<NodeStatus['system']['disk']> {
   try {
     // Use path.resolve to get canonical path
     const dataPath = path.resolve(MEOWCOIN_DATA);
+    
+    // Validate the path
+    validatePath(dataPath);
+    
     const { stdout } = await execAsync(`df -h "${dataPath}" | tail -n 1`);
     const parts = stdout.split(/\s+/);
     
