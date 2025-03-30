@@ -1,35 +1,23 @@
 # Build stage for React frontend
-FROM node:18 as frontend-builder
+FROM node:18-alpine as frontend-builder
 WORKDIR /app/frontend
 
 # Install necessary build tools
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    build-essential python3 make g++ && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache python3 make g++
 
-# Set environment variables to force JS implementation
-ENV NODE_OPTIONS="--max-old-space-size=4096"
-
-# Copy package.json and install dependencies
+# Copy package.json and install dependencies (utilizing cache better)
 COPY frontend/package*.json ./
-
-# Create a temporary patch for Rollup
-RUN mkdir -p node_modules/rollup/dist && \
-    echo 'export default function(...args) { console.warn("Using JS implementation for Rollup"); return require("./rollup.js").default(...args); }' > node_modules/rollup/dist/native.js || true
-
-# Install dependencies
-RUN npm install
+RUN npm ci
 
 # Build the frontend
 COPY frontend/ ./
-RUN node --trace-warnings ./node_modules/.bin/vite build
+RUN npm run build
 
 # Build stage for Node.js backend
-FROM node:18 as backend-builder
+FROM node:18-alpine as backend-builder
 WORKDIR /app/backend
 COPY backend/package*.json ./
-RUN npm install
+RUN npm ci
 COPY backend/ ./
 RUN npm run build
 
@@ -62,13 +50,12 @@ RUN set -ex && \
 # Final image
 FROM debian:stable-slim
 
-# Install dependencies
+# Install dependencies - reduced list with only necessary ones
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        bash curl jq ca-certificates bc nodejs npm \
+        bash curl jq ca-certificates nodejs npm \
         procps libboost-system1.74.0 libboost-filesystem1.74.0 \
-        libboost-program-options1.74.0 libboost-thread1.74.0 \
-        libboost-chrono1.74.0 gosu file docker.io && \
+        gosu docker.io && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /run/nginx
@@ -83,11 +70,11 @@ COPY --from=frontend-builder /app/frontend/dist /var/www/html
 
 # Copy backend files
 COPY --from=backend-builder /app/backend/dist /app/backend
-COPY backend/package*.json /app/backend/
+COPY --from=backend-builder /app/backend/package*.json /app/backend/
 WORKDIR /app/backend
 RUN npm ci --production
 
-# Add scripts and configs (only the essential ones we still need)
+# Add scripts and configs
 COPY scripts/functions.sh /scripts/
 COPY scripts/auto-configure.sh /scripts/
 COPY scripts/entrypoint.sh /scripts/
@@ -109,7 +96,12 @@ EXPOSE 9766 8788 8080
 ENV HOME=/home/meowcoin \
     MEOWCOIN_DATA=/data \
     MEOWCOIN_CONFIG=/config \
-    PATH=/scripts:$PATH
+    PATH=/scripts:$PATH \
+    NODE_ENV=production
+
+# Set up healthcheck
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+  CMD ["/scripts/healthcheck.sh"]
 
 # Start both the Meowcoin daemon and web server
 ENTRYPOINT ["/scripts/entrypoint.sh"]

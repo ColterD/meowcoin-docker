@@ -1,58 +1,50 @@
+// backend/src/services/nodeMonitor.ts
 import { Server } from 'socket.io';
 import { getNodeStatus } from './nodeService';
 import { getContainerLogs } from './systemService';
+import { setupMonitor } from './monitorUtils';
 
 // Node status monitoring interval (in ms)
 const STATUS_INTERVAL = 5000;
-
-// Keep track of last log timestamp
-let lastLogTimestamp = 0;
+const LOGS_INTERVAL = 10000;
 
 // Setup node status monitoring
 export function setupNodeMonitor(io: Server) {
-  // Initialize last log timestamp
-  lastLogTimestamp = Date.now();
+  // Keep track of last log timestamp
+  let lastLogTimestamp = Date.now();
   
-  let statusIntervalId: NodeJS.Timeout;
-  let logsIntervalId: NodeJS.Timeout;
+  // Setup status monitor
+  const statusCleanup = setupMonitor(
+    io,
+    getNodeStatus,
+    'nodeStatus',
+    STATUS_INTERVAL,
+    5000,
+    'node status'
+  );
   
-  // Periodically check node status and emit to connected clients
-  statusIntervalId = setInterval(async () => {
-    try {
-      const status = await getNodeStatus();
-      if (status) {
-        io.emit('nodeStatus', status);
-      }
-    } catch (error) {
-      console.error('Error in node monitor:', error);
+  // Setup logs monitor with custom function
+  const logsMonitorFunction = async () => {
+    const logs = await getContainerLogs(lastLogTimestamp);
+    if (logs.success && logs.logs.length > 0) {
+      lastLogTimestamp = logs.timestamp;
+      return logs;
     }
-  }, STATUS_INTERVAL);
-  
-  // Logs monitoring (every 10 seconds)
-  logsIntervalId = setInterval(async () => {
-    try {
-      const logs = await getContainerLogs(lastLogTimestamp);
-      if (logs.success && logs.logs.length > 0) {
-        lastLogTimestamp = logs.timestamp;
-        io.emit('logs', logs);
-      }
-    } catch (error) {
-      console.error('Error in logs monitor:', error);
-    }
-  }, 10000);
-  
-  // Define cleanup function
-  const cleanup = () => {
-    clearInterval(statusIntervalId);
-    clearInterval(logsIntervalId);
+    return null;
   };
   
-  // Remove existing listener to prevent duplicates
-  process.removeListener('exit', cleanup);
+  const logsCleanup = setupMonitor(
+    io,
+    logsMonitorFunction,
+    'logs',
+    LOGS_INTERVAL,
+    7000,
+    'logs'
+  );
   
-  // Add new listener
-  process.on('exit', cleanup);
-  
-  // Return cleanup function
-  return cleanup;
+  // Return combined cleanup function
+  return () => {
+    statusCleanup();
+    logsCleanup();
+  };
 }

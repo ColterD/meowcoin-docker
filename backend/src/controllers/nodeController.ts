@@ -1,3 +1,4 @@
+// backend/src/controllers/nodeController.ts
 import { Request, Response } from 'express';
 import { 
   getNodeStatus, 
@@ -12,17 +13,26 @@ import {
 } from '../services/systemService';
 import { SettingsRequest, NodeControlRequest, UpdateRequest } from '../types';
 
+// Standard error response handler
+const handleError = (res: Response, error: unknown, message: string) => {
+  console.error(`${message}:`, error);
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  res.status(500).json({ 
+    success: false, 
+    message: `${message}: ${errorMessage}` 
+  });
+};
+
 // Get node status
 export async function getStatus(req: Request, res: Response) {
   try {
     const status = await getNodeStatus();
     if (!status) {
-      return res.status(500).json({ error: 'Failed to get node status' });
+      return res.status(500).json({ success: false, message: 'Failed to get node status' });
     }
     res.json(status);
   } catch (error) {
-    console.error('Error in getStatus controller:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Error in getStatus controller');
   }
 }
 
@@ -32,8 +42,7 @@ export async function getDiskUsage(req: Request, res: Response) {
     const diskUsage = await getDiskUsageDetails();
     res.json(diskUsage);
   } catch (error) {
-    console.error('Error in getDiskUsage controller:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Error in getDiskUsage controller');
   }
 }
 
@@ -56,8 +65,7 @@ export async function getLogs(req: Request, res: Response) {
     const logs = await getContainerLogs(since);
     res.json(logs);
   } catch (error) {
-    console.error('Error in getLogs controller:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    handleError(res, error, 'Error in getLogs controller');
   }
 }
 
@@ -100,11 +108,7 @@ export async function saveSettings(req: Request, res: Response) {
       message: 'Settings updated. A restart may be required for changes to take effect.' 
     });
   } catch (error) {
-    console.error('Error in saveSettings controller:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error' 
-    });
+    handleError(res, error, 'Error in saveSettings controller');
   }
 }
 
@@ -154,11 +158,7 @@ export async function controlNode(req: Request, res: Response) {
       });
     }
   } catch (error) {
-    console.error('Error in controlNode controller:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error' 
-    });
+    handleError(res, error, 'Error in controlNode controller');
   }
 }
 
@@ -198,10 +198,6 @@ export async function performUpdate(req: Request, res: Response) {
       message: 'Update initiated. The node will restart when complete.' 
     });
   } catch (error) {
-    console.error('Error in performUpdate controller:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error' 
-    });
+    handleError(res, error, 'Error in performUpdate controller');
   }
 }
