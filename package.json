@@ -19,10 +19,16 @@
       "lint:frontend": "cd frontend && npm run lint",
       "lint:backend": "cd backend && npm run lint",
       "test": "npm run test:frontend && npm run test:backend",
-      "test:frontend": "cd frontend && npm test || echo 'No tests in frontend'",
-      "test:backend": "cd backend && npm test || echo 'No tests in backend'"
+      "test:frontend": "cd frontend && npm test || echo \"No tests in frontend\"",
+      "test:backend": "cd backend && npm test || echo \"No tests in backend\"",
+      "postinstall": "npm run build"
     },
     "devDependencies": {
-      "concurrently": "^8.2.0"
+      "concurrently": "^8.2.2",
+      "cross-env": "^7.0.3"
+    },
+    "engines": {
+      "node": ">=16",
+      "npm": ">=8"
     }
   }

@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import crypto from 'crypto';
+import { environment } from '../config/environment';
 import { 
   BlockchainInfo, 
   NetworkInfo, 
@@ -14,8 +15,8 @@ import {
 const execAsync = promisify(exec);
 
 // Configuration
-const MEOWCOIN_CONFIG = process.env.MEOWCOIN_CONFIG || '/config';
-const MEOWCOIN_DATA = process.env.MEOWCOIN_DATA || '/data';
+const MEOWCOIN_CONFIG = environment.meowcoinConfig;
+const MEOWCOIN_DATA = environment.meowcoinData;
 const RPC_CONF_PATH = path.join(MEOWCOIN_CONFIG, 'meowcoin.conf');
 
 // Helper to sanitize command parameters

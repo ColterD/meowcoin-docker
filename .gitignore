@@ -76,3 +76,6 @@ Desktop.ini
 .tmp/
 tmp/
 temp/
+
+# Test files
+.jest-cache

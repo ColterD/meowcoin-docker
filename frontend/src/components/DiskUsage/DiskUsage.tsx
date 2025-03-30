@@ -3,11 +3,12 @@ import { getDiskUsage } from '../../api/nodeApi';
 import { useWebSocketListener } from '../../hooks/useWebSocketListener';
 import { DiskUsage as DiskUsageType } from '../../api/nodeApi';
 import styles from './DiskUsage.module.css';
+import { formatBytes } from '../../utils/formatters';
 
 export default function DiskUsage() {
   const queryClient = useQueryClient();
   
-  const { data, isLoading } = useQuery('diskUsage', getDiskUsage, {
+  const { data, isLoading, error } = useQuery('diskUsage', getDiskUsage, {
     refetchInterval: 60000 // Refresh every minute
   });
   
@@ -21,6 +22,15 @@ export default function DiskUsage() {
       <section className="status-card">
         <h2>Disk Usage Details</h2>
         <div>Loading detailed disk usage...</div>
+      </section>
+    );
+  }
+  
+  if (error) {
+    return (
+      <section className="status-card">
+        <h2>Disk Usage Details</h2>
+        <div>Error loading disk usage: {error instanceof Error ? error.message : 'Unknown error'}</div>
       </section>
     );
   }
@@ -52,16 +62,4 @@ export default function DiskUsage() {
       </div>
     </section>
   );
-}
-
-function formatBytes(bytes: number, decimals = 2) {
-  if (bytes === 0) return '0 B';
-  
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
