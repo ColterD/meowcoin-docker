@@ -1,0 +1,21 @@
+.alertContainer {
+    background-color: var(--warning-color);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .alertContainer p {
+    margin: 0;
+    font-weight: 500;
+  }
+  
+  .alertContainer button {
+    margin-left: 15px;
+    background-color: white;
+    color: var(--warning-color);
+  }

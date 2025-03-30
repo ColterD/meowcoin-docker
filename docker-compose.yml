@@ -9,6 +9,7 @@ services:
     volumes:
       - meowcoin-data:/data
       - ./config:/config
+      - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "${RPC_PORT:-9766}:9766"  # RPC port
       - "${P2P_PORT:-8788}:8788"  # P2P port

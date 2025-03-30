@@ -1,0 +1,28 @@
+.progressBar {
+    height: 10px;
+    background-color: #eee;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+  
+  [data-theme="dark"] .progressBar {
+    background-color: #444;
+  }
+  
+  .progress {
+    height: 100%;
+    transition: width 0.3s ease;
+  }
+  
+  .normalBar {
+    background-color: var(--secondary-color);
+  }
+  
+  .warningBar {
+    background-color: var(--warning-color);
+  }
+  
+  .dangerBar {
+    background-color: var(--danger-color);
+  }

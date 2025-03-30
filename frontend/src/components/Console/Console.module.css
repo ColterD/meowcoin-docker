@@ -1,0 +1,63 @@
+.sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .toggleBtn {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+  }
+  
+  .toggleBtn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+  
+  [data-theme="dark"] .toggleBtn:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  .toggleIcon {
+    font-size: 12px;
+    transition: transform 0.3s;
+  }
+  
+  .consoleContainer {
+    transition: max-height 0.3s ease, opacity 0.3s;
+    max-height: 400px;
+    opacity: 1;
+    overflow: hidden;
+  }
+  
+  .collapsed .consoleContainer {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+  }
+  
+  .consoleOutput {
+    background-color: var(--console-bg);
+    color: var(--console-text);
+    font-family: monospace;
+    padding: 15px;
+    border-radius: 4px;
+    height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  
+  .consoleLine {
+    margin-bottom: 2px;
+  }
