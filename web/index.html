@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meowcoin Node Dashboard</title>
+    <link rel="stylesheet" href="css/main.css">
+    <meta http-equiv="refresh" content="10">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">🐱</div>
+            <h1>Meowcoin Node Dashboard</h1>
+        </header>
+        
+        <main>
+            <section class="status-card">
+                <h2>Node Status</h2>
+                <div class="status-indicator">
+                    <span id="status-light" class="status-light"></span>
+                    <span id="status-text">Loading...</span>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <h3>Version</h3>
+                        <p id="version">-</p>
+                    </div>
+                    <div class="info-item">
+                        <h3>Connections</h3>
+                        <p id="connections">-</p>
+                    </div>
+                    <div class="info-item">
+                        <h3>Blocks</h3>
+                        <p id="blocks">-</p>
+                    </div>
+                    <div class="info-item">
+                        <h3>Sync Progress</h3>
+                        <p id="progress">-</p>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="status-card">
+                <h2>System Resources</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <h3>Memory Usage</h3>
+                        <div class="progress-bar">
+                            <div id="memory-bar" class="progress" style="width: 0%"></div>
+                        </div>
+                        <p id="memory-text">-</p>
+                    </div>
+                    <div class="info-item">
+                        <h3>Disk Usage</h3>
+                        <div class="progress-bar">
+                            <div id="disk-bar" class="progress" style="width: 0%"></div>
+                        </div>
+                        <p id="disk-text">-</p>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="status-card">
+                <h2>Blockchain Explorer Links</h2>
+                <div class="links">
+                    <a href="https://explorer.mewccrypto.com/" target="_blank">Meowcoin Explorer</a>
+                    <a href="https://explorer.meowcoin.lol/" target="_blank">Meowcoin Explorer 2</a>
+                </div>
+            </section>
+        </main>
+        
+        <footer>
+            <p>Last updated: <span id="last-updated">-</span></p>
+        </footer>
+    </div>
+    
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
