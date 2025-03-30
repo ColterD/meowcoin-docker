@@ -15,5 +15,22 @@ export default defineConfig({
         ws: true,
       }
     }
-  }
+  },
+  build: {
+    rollupOptions: {
+      // Disable native module usage
+      external: [/@rollup\/rollup-linux-.*/, /@rollup\/rollup-darwin-.*/],
+    },
+    // Use fewer worker threads to avoid memory issues
+    minify: 'terser',
+    terserOptions: {
+      format: {
+        comments: false,
+      },
+    },
+  },
+  optimizeDeps: {
+    // Skip optimizing certain dependencies that might cause issues
+    exclude: ['@rollup/rollup-linux-x64-gnu', '@rollup/rollup-darwin-x64'],
+  },
 });

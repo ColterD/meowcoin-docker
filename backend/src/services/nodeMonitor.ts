@@ -13,8 +13,11 @@ export function setupNodeMonitor(io: Server) {
   // Initialize last log timestamp
   lastLogTimestamp = Date.now();
   
+  let statusIntervalId: NodeJS.Timeout;
+  let logsIntervalId: NodeJS.Timeout;
+  
   // Periodically check node status and emit to connected clients
-  const statusInterval = setInterval(async () => {
+  statusIntervalId = setInterval(async () => {
     try {
       const status = await getNodeStatus();
       if (status) {
@@ -26,7 +29,7 @@ export function setupNodeMonitor(io: Server) {
   }, STATUS_INTERVAL);
   
   // Logs monitoring (every 10 seconds)
-  const logsInterval = setInterval(async () => {
+  logsIntervalId = setInterval(async () => {
     try {
       const logs = await getContainerLogs(lastLogTimestamp);
       if (logs.success && logs.logs.length > 0) {
@@ -38,9 +41,18 @@ export function setupNodeMonitor(io: Server) {
     }
   }, 10000);
   
-  // Cleanup on process exit
-  process.on('exit', () => {
-    clearInterval(statusInterval);
-    clearInterval(logsInterval);
-  });
+  // Define cleanup function
+  const cleanup = () => {
+    clearInterval(statusIntervalId);
+    clearInterval(logsIntervalId);
+  };
+  
+  // Remove existing listener to prevent duplicates
+  process.removeListener('exit', cleanup);
+  
+  // Add new listener
+  process.on('exit', cleanup);
+  
+  // Return cleanup function
+  return cleanup;
 }

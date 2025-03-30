@@ -40,7 +40,19 @@ export async function getDiskUsage(req: Request, res: Response) {
 // Get logs
 export async function getLogs(req: Request, res: Response) {
   try {
-    const since = parseInt(req.query.since as string, 10) || 0;
+    // Validate and parse since parameter
+    let since = 0;
+    if (req.query.since !== undefined) {
+      const parsedSince = parseInt(req.query.since as string, 10);
+      if (isNaN(parsedSince) || parsedSince < 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Invalid since parameter. Must be a positive number.' 
+        });
+      }
+      since = parsedSince;
+    }
+    
     const logs = await getContainerLogs(since);
     res.json(logs);
   } catch (error) {
@@ -57,19 +69,20 @@ export async function saveSettings(req: Request, res: Response) {
     // Validate settings
     if (
       typeof settings.maxConnections !== 'number' || 
+      !Number.isInteger(settings.maxConnections) ||
       settings.maxConnections < 1 || 
       settings.maxConnections > 125
     ) {
       return res.status(400).json({ 
         success: false, 
-        message: 'Invalid maxConnections value' 
+        message: 'Invalid maxConnections value. Must be an integer between 1 and 125.' 
       });
     }
     
     if (settings.enableTxindex !== 0 && settings.enableTxindex !== 1) {
       return res.status(400).json({ 
         success: false, 
-        message: 'Invalid enableTxindex value' 
+        message: 'Invalid enableTxindex value. Must be 0 or 1.' 
       });
     }
     
@@ -100,6 +113,14 @@ export async function controlNode(req: Request, res: Response) {
   try {
     const request: NodeControlRequest = req.body;
     
+    // Validate action parameter
+    if (!request || !request.action) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required action parameter'
+      });
+    }
+    
     if (request.action === 'restart') {
       const success = await restartNode();
       if (!success) {
@@ -129,7 +150,7 @@ export async function controlNode(req: Request, res: Response) {
     } else {
       res.status(400).json({ 
         success: false, 
-        message: 'Invalid action' 
+        message: `Invalid action: ${request.action}. Valid actions are 'restart' or 'shutdown'.` 
       });
     }
   } catch (error) {
@@ -146,10 +167,20 @@ export async function performUpdate(req: Request, res: Response) {
   try {
     const request: UpdateRequest = req.body;
     
-    if (!request.version) {
+    // Validate version parameter
+    if (!request || !request.version) {
       return res.status(400).json({ 
         success: false, 
-        message: 'No version specified' 
+        message: 'Missing required version parameter' 
+      });
+    }
+    
+    // Basic version format validation (e.g., Meow-v2.0.5)
+    const versionPattern = /^Meow-v\d+\.\d+\.\d+$/;
+    if (!versionPattern.test(request.version)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid version format. Expected format: Meow-vX.Y.Z'
       });
     }
     

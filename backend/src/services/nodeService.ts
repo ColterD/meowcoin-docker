@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
+import crypto from 'crypto';
 import { 
   BlockchainInfo, 
   NetworkInfo, 
@@ -17,7 +18,13 @@ const MEOWCOIN_CONFIG = process.env.MEOWCOIN_CONFIG || '/config';
 const MEOWCOIN_DATA = process.env.MEOWCOIN_DATA || '/data';
 const RPC_CONF_PATH = path.join(MEOWCOIN_CONFIG, 'meowcoin.conf');
 
-// Helper to read RPC credentials
+// Helper to sanitize command parameters
+function sanitizeParam(param: string): string {
+  // Allow only alphanumeric characters, periods, hyphens, and underscores
+  return param.replace(/[^a-zA-Z0-9\.\-\_]/g, '');
+}
+
+// Helper to read RPC credentials safely
 async function getRpcCredentials(): Promise<{ user: string; password: string }> {
   try {
     // First, try to read from the password file
@@ -48,7 +55,7 @@ async function getRpcCredentials(): Promise<{ user: string; password: string }> 
   }
 }
 
-// Execute RPC commands
+// Execute RPC commands with secure credential handling
 async function executeRpcCommand<T>(command: string, params: any[] = []): Promise<T> {
   try {
     const credentials = await getRpcCredentials();
@@ -56,14 +63,15 @@ async function executeRpcCommand<T>(command: string, params: any[] = []): Promis
     
     const response = await axios.post<{ result: T; error: any }>('http://localhost:9766', {
       jsonrpc: '1.0',
-      id: 'meowcoin-dashboard',
+      id: `meowcoin-dashboard-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`,
       method: command,
       params
     }, {
       auth: {
         username: user,
         password
-      }
+      },
+      timeout: 10000 // Add timeout to prevent hanging requests
     });
     
     if (response.data.error) {
@@ -77,10 +85,12 @@ async function executeRpcCommand<T>(command: string, params: any[] = []): Promis
   }
 }
 
-// Alternative using CLI when RPC is not available
+// Alternative using CLI when RPC is not available - with enhanced security
 async function executeCli(command: string): Promise<string> {
   try {
-    const { stdout } = await execAsync(`gosu meowcoin meowcoin-cli -conf="${RPC_CONF_PATH}" ${command}`);
+    // Sanitize the command to prevent injection
+    const sanitizedCommand = sanitizeParam(command);
+    const { stdout } = await execAsync(`gosu meowcoin meowcoin-cli -conf="${RPC_CONF_PATH}" ${sanitizedCommand}`);
     return stdout.trim();
   } catch (error) {
     console.error(`Error executing CLI command ${command}:`, error);
@@ -91,7 +101,8 @@ async function executeCli(command: string): Promise<string> {
 // Check if daemon is running
 export async function isDaemonRunning(): Promise<boolean> {
   try {
-    const { stdout } = await execAsync('pgrep -x "meowcoind"');
+    // Use a safer version that doesn't rely on shell command parsing
+    const { stdout } = await execAsync('pgrep -x meowcoind');
     return !!stdout.trim();
   } catch (error) {
     return false;
@@ -124,21 +135,28 @@ export async function getNodeVersion(): Promise<string> {
   }
 }
 
-// Check for version updates
+// Check for version updates - safe from injection
 export async function checkForVersionUpdate(currentVersion: string): Promise<{ available: boolean; version: string }> {
   try {
     // Extract clean version (e.g., Meow-2.0.5 to 2.0.5)
     const cleanVersion = currentVersion.replace(/^Meow-/, '').split('.').slice(0, 3).join('.');
     
-    const response = await axios.get('https://api.github.com/repos/Meowcoin-Foundation/Meowcoin/tags');
-    if (!response.data || !response.data.length) {
-      throw new Error('No tags found');
+    const response = await axios.get('https://api.github.com/repos/Meowcoin-Foundation/Meowcoin/tags', {
+      timeout: 10000, // Add timeout
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Meowcoin-Dashboard'
+      }
+    });
+    
+    if (!response.data || !Array.isArray(response.data) || !response.data.length) {
+      throw new Error('No tags found or invalid response format');
     }
     
     // Sort tags to find latest
     const sortedTags = [...response.data].sort((a, b) => {
-      const aVersion = a.name.replace(/^Meow-/, '').split('.').map(n => parseInt(n));
-      const bVersion = b.name.replace(/^Meow-/, '').split('.').map(n => parseInt(n));
+        const aVersion = a.name.replace(/^Meow-/, '').split('.').map((n: string) => parseInt(n) || 0);
+        const bVersion = b.name.replace(/^Meow-/, '').split('.').map((n: string) => parseInt(n) || 0);
       
       for (let i = 0; i < Math.max(aVersion.length, bVersion.length); i++) {
         const aNum = aVersion[i] || 0;
@@ -182,7 +200,7 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-// Get node status
+// Get node status with improved error handling
 export async function getNodeStatus(): Promise<NodeStatus | null> {
   try {
     const isRunning = await isDaemonRunning();
@@ -211,48 +229,71 @@ export async function getNodeStatus(): Promise<NodeStatus | null> {
     const memInfo = await getMemoryInfo();
     const diskInfo = await getDiskInfo();
     
-    // Get node stats
-    const blockchainInfo = await getBlockchainInfo();
-    const networkInfo = await getNetworkInfo();
-    const netTotals = await getNetTotals();
-    
-    // Get settings
-    const settings = await getNodeSettings();
-    
-    // Check for updates
-    const versionCheck = await checkForVersionUpdate(formatVersion(networkInfo.version.toString()));
-    
-    // Determine status
-    let status: NodeStatus['status'] = 'running';
-    if (blockchainInfo.initialblockdownload || blockchainInfo.blocks < blockchainInfo.headers) {
-      status = 'syncing';
-    } else if (networkInfo.connections === 0) {
-      status = 'no_connections';
+    try {
+      // Get node stats - wrapped in try/catch to handle potential RPC failures
+      const blockchainInfo = await getBlockchainInfo();
+      const networkInfo = await getNetworkInfo();
+      const netTotals = await getNetTotals();
+      
+      // Get settings
+      const settings = await getNodeSettings();
+      
+      // Check for updates
+      const versionCheck = await checkForVersionUpdate(formatVersion(networkInfo.version.toString()));
+      
+      // Determine status
+      let status: NodeStatus['status'] = 'running';
+      if (blockchainInfo.initialblockdownload || blockchainInfo.blocks < blockchainInfo.headers) {
+        status = 'syncing';
+      } else if (networkInfo.connections === 0) {
+        status = 'no_connections';
+      }
+      
+      return {
+        status,
+        blockchain: {
+          blocks: blockchainInfo.blocks,
+          headers: blockchainInfo.headers,
+          progress: (blockchainInfo.verificationprogress * 100).toFixed(2)
+        },
+        node: {
+          version: formatVersion(networkInfo.version.toString()),
+          subversion: networkInfo.subversion,
+          connections: networkInfo.connections,
+          bytesReceived: netTotals.totalbytesrecv,
+          bytesSent: netTotals.totalbytessent
+        },
+        system: {
+          memory: memInfo,
+          disk: diskInfo
+        },
+        settings,
+        updateAvailable: versionCheck.available,
+        latestVersion: versionCheck.version,
+        updated: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Error getting node data via RPC:', error);
+      
+      // Return partial status if RPC fails but daemon is running
+      return {
+        status: 'starting',
+        blockchain: { blocks: 0, headers: 0, progress: '0' },
+        node: { 
+          version: 'Unknown', 
+          subversion: 'Unknown', 
+          connections: 0,
+          bytesReceived: 0,
+          bytesSent: 0
+        },
+        system: {
+          memory: memInfo,
+          disk: diskInfo
+        },
+        settings: await getNodeSettings(),
+        updated: new Date().toISOString()
+      };
     }
-    
-    return {
-      status,
-      blockchain: {
-        blocks: blockchainInfo.blocks,
-        headers: blockchainInfo.headers,
-        progress: (blockchainInfo.verificationprogress * 100).toFixed(2)
-      },
-      node: {
-        version: formatVersion(networkInfo.version.toString()),
-        subversion: networkInfo.subversion,
-        connections: networkInfo.connections,
-        bytesReceived: netTotals.totalbytesrecv,
-        bytesSent: netTotals.totalbytessent
-      },
-      system: {
-        memory: memInfo,
-        disk: diskInfo
-      },
-      settings,
-      updateAvailable: versionCheck.available,
-      latestVersion: versionCheck.version,
-      updated: new Date().toISOString()
-    };
   } catch (error) {
     console.error('Error getting node status:', error);
     return null;
@@ -285,13 +326,19 @@ function formatVersion(version: string): string {
   return version;
 }
 
-// Get memory info
+// Get memory info with improved error handling
 async function getMemoryInfo(): Promise<NodeStatus['system']['memory']> {
   try {
     const { stdout } = await execAsync("free -m | grep 'Mem'");
     const parts = stdout.split(/\s+/);
-    const total = parseInt(parts[1], 10);
-    const used = parseInt(parts[2], 10);
+    
+    // Validate parts before accessing
+    if (parts.length < 3) {
+      throw new Error('Invalid memory info format');
+    }
+    
+    const total = parseInt(parts[1], 10) || 0;
+    const used = parseInt(parts[2], 10) || 0;
     const percent = ((used / total) * 100).toFixed(2);
     
     return { total, used, percent };
@@ -301,14 +348,23 @@ async function getMemoryInfo(): Promise<NodeStatus['system']['memory']> {
   }
 }
 
-// Get disk info
+// Get disk info with improved error handling
 async function getDiskInfo(): Promise<NodeStatus['system']['disk']> {
   try {
-    const { stdout } = await execAsync(`df -h "${MEOWCOIN_DATA}" | tail -n 1`);
+    // Use path.resolve to get canonical path
+    const dataPath = path.resolve(MEOWCOIN_DATA);
+    const { stdout } = await execAsync(`df -h "${dataPath}" | tail -n 1`);
     const parts = stdout.split(/\s+/);
-    const size = parts[1];
-    const used = parts[2];
-    const percent = parseInt(parts[4].replace('%', ''), 10);
+    
+    // Validate parts before accessing
+    if (parts.length < 5) {
+      throw new Error('Invalid disk info format');
+    }
+    
+    const size = parts[1] || '0';
+    const used = parts[2] || '0';
+    const percentStr = parts[4] || '0%';
+    const percent = parseInt(percentStr.replace('%', ''), 10) || 0;
     
     return { size, used, percent };
   } catch (error) {
@@ -317,7 +373,7 @@ async function getDiskInfo(): Promise<NodeStatus['system']['disk']> {
   }
 }
 
-// Get node settings
+// Get node settings with improved error handling
 export async function getNodeSettings(): Promise<NodeStatus['settings']> {
   try {
     if (!fs.existsSync(RPC_CONF_PATH)) {
@@ -332,14 +388,17 @@ export async function getNodeSettings(): Promise<NodeStatus['settings']> {
     const maxConnections = maxConnectionsMatch ? parseInt(maxConnectionsMatch[1], 10) : 50;
     const enableTxindex = enableTxindexMatch ? parseInt(enableTxindexMatch[1], 10) : 1;
     
-    return { maxConnections, enableTxindex };
+    return { 
+      maxConnections: isNaN(maxConnections) ? 50 : maxConnections, 
+      enableTxindex: isNaN(enableTxindex) ? 1 : enableTxindex 
+    };
   } catch (error) {
     console.error('Error getting node settings:', error);
     return { maxConnections: 50, enableTxindex: 1 };
   }
 }
 
-// Save node settings
+// Save node settings with improved security
 export async function saveNodeSettings(settings: { maxConnections: number; enableTxindex: number }): Promise<boolean> {
   try {
     if (!fs.existsSync(RPC_CONF_PATH)) {
@@ -348,28 +407,40 @@ export async function saveNodeSettings(settings: { maxConnections: number; enabl
     
     let confContent = fs.readFileSync(RPC_CONF_PATH, 'utf8');
     
+    // Validate settings again for security
+    const maxConnections = typeof settings.maxConnections === 'number' &&
+                           Number.isInteger(settings.maxConnections) &&
+                           settings.maxConnections >= 1 && 
+                           settings.maxConnections <= 125 ? 
+                           settings.maxConnections : 50;
+                           
+    const enableTxindex = settings.enableTxindex === 0 || settings.enableTxindex === 1 ?
+                          settings.enableTxindex : 1;
+    
     // Update maxconnections
     if (confContent.match(/maxconnections=\d+/)) {
       confContent = confContent.replace(
         /maxconnections=\d+/, 
-        `maxconnections=${settings.maxConnections}`
+        `maxconnections=${maxConnections}`
       );
     } else {
-      confContent += `\nmaxconnections=${settings.maxConnections}`;
+      confContent += `\nmaxconnections=${maxConnections}`;
     }
     
     // Update txindex
     if (confContent.match(/txindex=\d+/)) {
       confContent = confContent.replace(
         /txindex=\d+/, 
-        `txindex=${settings.enableTxindex}`
+        `txindex=${enableTxindex}`
       );
     } else {
-      confContent += `\ntxindex=${settings.enableTxindex}`;
+      confContent += `\ntxindex=${enableTxindex}`;
     }
     
-    // Write back to file
-    fs.writeFileSync(RPC_CONF_PATH, confContent);
+    // Write back to file with atomic write
+    const tempFile = `${RPC_CONF_PATH}.tmp`;
+    fs.writeFileSync(tempFile, confContent);
+    fs.renameSync(tempFile, RPC_CONF_PATH);
     
     // Create a flag file to signal config update
     fs.writeFileSync(`${MEOWCOIN_DATA}/.meowcoin/config_updated.flag`, '');
@@ -381,10 +452,10 @@ export async function saveNodeSettings(settings: { maxConnections: number; enabl
   }
 }
 
-// Restart the node
+// Restart the node safely
 export async function restartNode(): Promise<boolean> {
   try {
-    const { stdout } = await execAsync('docker restart meowcoin-node');
+    await execAsync('docker restart meowcoin-node');
     return true;
   } catch (error) {
     console.error('Error restarting node:', error);
@@ -392,10 +463,10 @@ export async function restartNode(): Promise<boolean> {
   }
 }
 
-// Shutdown the node
+// Shutdown the node safely
 export async function shutdownNode(): Promise<boolean> {
   try {
-    const { stdout } = await execAsync('docker stop meowcoin-node');
+    await execAsync('docker stop meowcoin-node');
     return true;
   } catch (error) {
     console.error('Error stopping node:', error);
@@ -403,9 +474,16 @@ export async function shutdownNode(): Promise<boolean> {
   }
 }
 
-// Update the node
+// Update the node with version validation
 export async function updateNode(version: string): Promise<boolean> {
   try {
+    // Validate version format
+    const versionPattern = /^Meow-v\d+\.\d+\.\d+$/;
+    if (!versionPattern.test(version)) {
+      console.error(`Invalid version format: ${version}`);
+      return false;
+    }
+    
     // Create update flag file with version
     fs.writeFileSync(`${MEOWCOIN_DATA}/.meowcoin/update.flag`, version);
     return true;

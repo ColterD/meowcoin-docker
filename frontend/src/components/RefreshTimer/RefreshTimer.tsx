@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+// frontend/src/components/RefreshTimer/RefreshTimer.tsx
+import { useState, useEffect, useCallback, memo } from 'react';
 import { useInterval } from '../../hooks/useInterval';
 import styles from './RefreshTimer.module.css';
 
-export default function RefreshTimer() {
+const RefreshTimer = memo(() => {
   const [refreshInterval, setRefreshInterval] = useState(() => {
     const savedInterval = localStorage.getItem('meowcoin-refresh-interval');
     return savedInterval ? parseInt(savedInterval, 10) : 30;
@@ -16,22 +17,21 @@ export default function RefreshTimer() {
   }, [refreshInterval]);
   
   // Check for changes to refreshInterval in localStorage
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const savedInterval = localStorage.getItem('meowcoin-refresh-interval');
-      if (savedInterval) {
-        const newInterval = parseInt(savedInterval, 10);
-        if (newInterval !== refreshInterval) {
-          setRefreshInterval(newInterval);
-        }
+  const handleStorageChange = useCallback((event: StorageEvent) => {
+    if (event.key === 'meowcoin-refresh-interval' && event.newValue) {
+      const newInterval = parseInt(event.newValue, 10);
+      if (!isNaN(newInterval) && newInterval !== refreshInterval) {
+        setRefreshInterval(newInterval);
       }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    }
   }, [refreshInterval]);
   
-  // Countdown timer
+  useEffect(() => {
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [handleStorageChange]);
+  
+  // Countdown timer with controlled render
   useInterval(() => {
     setCountDown((prev) => {
       if (prev <= 1) {
@@ -54,4 +54,8 @@ export default function RefreshTimer() {
       <span className={styles.refreshTimerText}>{countDown}s</span>
     </div>
   );
-}
+});
+
+RefreshTimer.displayName = 'RefreshTimer';
+
+export default RefreshTimer;

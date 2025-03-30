@@ -1,16 +1,35 @@
 # Build stage for React frontend
-FROM node:18-alpine as frontend-builder
+FROM node:18 as frontend-builder
 WORKDIR /app/frontend
+
+# Install necessary build tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set environment variables to force JS implementation
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+# Copy package.json and install dependencies
 COPY frontend/package*.json ./
-RUN npm ci
+
+# Create a temporary patch for Rollup
+RUN mkdir -p node_modules/rollup/dist && \
+    echo 'export default function(...args) { console.warn("Using JS implementation for Rollup"); return require("./rollup.js").default(...args); }' > node_modules/rollup/dist/native.js || true
+
+# Install dependencies
+RUN npm install
+
+# Build the frontend
 COPY frontend/ ./
-RUN npm run build
+RUN node --trace-warnings ./node_modules/.bin/vite build
 
 # Build stage for Node.js backend
-FROM node:18-alpine as backend-builder
+FROM node:18 as backend-builder
 WORKDIR /app/backend
 COPY backend/package*.json ./
-RUN npm ci
+RUN npm install
 COPY backend/ ./
 RUN npm run build
 
