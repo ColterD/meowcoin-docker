@@ -114,90 +114,90 @@ export async function saveSettings(req: Request, res: Response) {
 
 // Control node (restart/shutdown)
 export async function controlNode(req: Request, res: Response) {
-  try {
-    const request: NodeControlRequest = req.body;
-    
-    // Validate action parameter
-    if (!request || !request.action) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required action parameter'
-      });
+    try {
+      const request: NodeControlRequest = req.body;
+      
+      // Validate action parameter
+      if (!request || !request.action) {
+        return res.status(400).json({
+          success: false,
+          message: 'Missing required action parameter'
+        });
+      }
+      
+      if (request.action === 'restart') {
+        const success = await restartNode();
+        if (!success) {
+          return res.status(500).json({ 
+            success: false, 
+            message: 'Failed to restart node' 
+          });
+        }
+        
+        res.json({ 
+          success: true, 
+          message: 'Restart initiated. The dashboard will reconnect when the node is back online.' 
+        });
+      } else if (request.action === 'shutdown') {
+        const success = await shutdownNode();
+        if (!success) {
+          return res.status(500).json({ 
+            success: false, 
+            message: 'Failed to shutdown node' 
+          });
+        }
+        
+        res.json({ 
+          success: true, 
+          message: 'Shutdown initiated. You will need to restart the container manually.' 
+        });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          message: `Invalid action: ${request.action}. Valid actions are 'restart' or 'shutdown'.` 
+        });
+      }
+    } catch (error) {
+      handleError(res, error, 'Error in controlNode controller');
     }
-    
-    if (request.action === 'restart') {
-      const success = await restartNode();
+  }
+  
+  // Update node
+  export async function performUpdate(req: Request, res: Response) {
+    try {
+      const request: UpdateRequest = req.body;
+      
+      // Validate version parameter
+      if (!request || !request.version) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Missing required version parameter' 
+        });
+      }
+      
+      // Basic version format validation (e.g., Meow-v2.0.5)
+      const versionPattern = /^Meow-v\d+\.\d+\.\d+$/;
+      if (!versionPattern.test(request.version)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid version format. Expected format: Meow-vX.Y.Z'
+        });
+      }
+      
+      const success = await updateNode(request.version);
+      
       if (!success) {
         return res.status(500).json({ 
           success: false, 
-          message: 'Failed to restart node' 
+          message: 'Failed to initiate update' 
         });
       }
       
       res.json({ 
         success: true, 
-        message: 'Restart initiated. The dashboard will reconnect when the node is back online.' 
+        message: 'Update initiated. The node will restart when complete.' 
       });
-    } else if (request.action === 'shutdown') {
-      const success = await shutdownNode();
-      if (!success) {
-        return res.status(500).json({ 
-          success: false, 
-          message: 'Failed to shutdown node' 
-        });
-      }
-      
-      res.json({ 
-        success: true, 
-        message: 'Shutdown initiated. You will need to restart the container manually.' 
-      });
-    } else {
-      res.status(400).json({ 
-        success: false, 
-        message: `Invalid action: ${request.action}. Valid actions are 'restart' or 'shutdown'.` 
-      });
+    } catch (error) {
+      handleError(res, error, 'Error in performUpdate controller');
     }
-  } catch (error) {
-    handleError(res, error, 'Error in controlNode controller');
   }
-}
-
-// Update node
-export async function performUpdate(req: Request, res: Response) {
-  try {
-    const request: UpdateRequest = req.body;
-    
-    // Validate version parameter
-    if (!request || !request.version) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Missing required version parameter' 
-      });
-    }
-    
-    // Basic version format validation (e.g., Meow-v2.0.5)
-    const versionPattern = /^Meow-v\d+\.\d+\.\d+$/;
-    if (!versionPattern.test(request.version)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid version format. Expected format: Meow-vX.Y.Z'
-      });
-    }
-    
-    const success = await updateNode(request.version);
-    
-    if (!success) {
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Failed to initiate update' 
-      });
-    }
-    
-    res.json({ 
-      success: true, 
-      message: 'Update initiated. The node will restart when complete.' 
-    });
-  } catch (error) {
-    handleError(res, error, 'Error in performUpdate controller');
-  }
-}

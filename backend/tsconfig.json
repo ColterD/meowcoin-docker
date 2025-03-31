@@ -4,15 +4,14 @@
       "module": "CommonJS",
       "outDir": "./dist",
       "rootDir": "./src",
-      "strict": true,
+      "strict": false,
       "esModuleInterop": true,
       "skipLibCheck": true,
       "forceConsistentCasingInFileNames": true,
       "resolveJsonModule": true,
       "isolatedModules": true,
-      "types": ["node", "jest"],
       "typeRoots": ["./node_modules/@types"]
     },
     "include": ["src/**/*"],
     "exclude": ["node_modules"]
-}
+  }

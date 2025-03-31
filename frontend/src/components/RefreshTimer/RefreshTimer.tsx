@@ -42,6 +42,8 @@ const RefreshTimer = memo(() => {
     intervalRef.current = window.setInterval(() => {
       setCountDown((prev) => {
         if (prev <= 1) {
+          // Dispatch global refresh event instead of directly triggering refetch
+          window.dispatchEvent(new Event('refresh-data'));
           return refreshInterval;
         }
         return prev - 1;

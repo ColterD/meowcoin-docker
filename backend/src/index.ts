@@ -6,6 +6,7 @@ import path from 'path';
 import { setupNodeMonitor } from './services/nodeMonitor';
 import { setupDiskMonitor } from './services/diskMonitor';
 import nodeRoutes from './routes/nodeRoutes';
+import { environment } from './config/environment';
 
 // Create Express app
 const app = express();
@@ -24,8 +25,13 @@ app.use(express.json());
 // API routes
 app.use('/api', nodeRoutes);
 
-// Static file serving for production
-app.use(express.static('/var/www/html'));
+// Determine static file directory based on environment
+const staticDir = environment.isDevelopment
+  ? path.join(__dirname, '../../frontend/dist')
+  : '/var/www/html';
+
+// Static file serving
+app.use(express.static(staticDir));
 
 // Set up Socket.IO connection
 io.on('connection', (socket) => {
@@ -41,11 +47,11 @@ setupDiskMonitor(io);
 
 // Handle 404s for SPA
 app.get('*', (req, res) => {
-  res.sendFile(path.resolve('/var/www/html/index.html'));
+  res.sendFile(path.resolve(staticDir, 'index.html'));
 });
 
 // Start server
-const PORT = process.env.PORT || 8080;
+const PORT = environment.port;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

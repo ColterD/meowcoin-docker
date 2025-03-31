@@ -1,4 +1,3 @@
-// shared/types/index.ts
 export interface NodeStatus {
     status: 'running' | 'syncing' | 'stopped' | 'no_connections' | 'starting';
     blockchain: {

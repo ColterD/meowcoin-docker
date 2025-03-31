@@ -9,7 +9,6 @@ services:
     volumes:
       - meowcoin-data:/data
       - ./config:/config
-      # Removed Docker socket mount for security - implement alternative if required
     ports:
       - "${RPC_PORT:-9766}:9766"  # RPC port
       - "${P2P_PORT:-8788}:8788"  # P2P port  
@@ -24,6 +23,7 @@ services:
       - AUTO_UPDATE=${AUTO_UPDATE:-security}
       - BACKUP_ENABLED=${BACKUP_ENABLED:-true}
       - BACKUP_INTERVAL=${BACKUP_INTERVAL:-daily}
+      - PORT=${PORT:-8080}
     # Add resource limits to prevent container from consuming excessive resources
     deploy:
       resources:
@@ -44,7 +44,6 @@ services:
     # Add security options
     security_opt:
       - no-new-privileges:true
-      - seccomp=default
 
 volumes:
   meowcoin-data:

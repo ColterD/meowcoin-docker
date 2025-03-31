@@ -131,6 +131,21 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     setupSocket();
   }, [setupSocket]);
   
+  // Listen for global refresh events
+  useEffect(() => {
+    const handleRefresh = () => {
+      if (socketRef.current && connected) {
+        socketRef.current.emit('refresh');
+      }
+    };
+    
+    window.addEventListener('refresh-data', handleRefresh);
+    
+    return () => {
+      window.removeEventListener('refresh-data', handleRefresh);
+    };
+  }, [connected]);
+  
   useEffect(() => {
     const socketIo = setupSocket();
     

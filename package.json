@@ -10,7 +10,7 @@
     ],
     "scripts": {
       "prepare": "npm run build:shared",
-      "build:shared": "tsc -p shared/tsconfig.json",
+      "build:shared": "cd shared && npm run build",
       "dev:frontend": "cd frontend && npm run dev",
       "dev:backend": "cd backend && npm run dev",
       "dev": "npm run build:shared && concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
@@ -18,12 +18,10 @@
       "build:backend": "cd backend && npm run build",
       "build": "npm run build:shared && npm run build:backend && npm run build:frontend",
       "start": "cd backend && npm start",
-      "lint": "npm run lint:frontend && npm run lint:backend",
-      "lint:frontend": "cd frontend && npm run lint",
-      "lint:backend": "cd backend && npm run lint",
-      "test": "npm run test:backend",
-      "test:frontend": "echo 'Skipping frontend tests'",
-      "test:backend": "cd backend && npm test || echo \"No tests in backend\"",
+      "lint": "eslint \"**/*.{ts,tsx}\" --ignore-path .gitignore",
+      "test": "npm run test:backend && npm run test:frontend",
+      "test:frontend": "cd frontend && npm test",
+      "test:backend": "cd backend && npm test",
       "clean": "rimraf node_modules && rimraf */node_modules && rimraf */dist",
       "clean:all": "npm run clean && rimraf package-lock.json && rimraf */package-lock.json",
       "check-types": "tsc --noEmit -p shared/tsconfig.json && cd frontend && tsc --noEmit && cd ../backend && tsc --noEmit",
@@ -32,6 +30,7 @@
     "devDependencies": {
       "concurrently": "^8.2.2",
       "cross-env": "^7.0.3",
+      "eslint": "^8.56.0",
       "prettier": "^3.0.0",
       "rimraf": "^5.0.5",
       "typescript": "^5.2.2"
