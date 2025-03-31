@@ -1,4 +1,3 @@
-// backend/jest.config.js
 module.exports = {
     preset: 'ts-jest',
     testEnvironment: 'node',
@@ -10,9 +9,7 @@ module.exports = {
       'src/**/*.{ts,tsx}',
       '!src/**/*.d.ts',
     ],
-    globals: {
-      'ts-jest': {
-        isolatedModules: true
-      }
+    transform: {
+      '^.+\\.tsx?$': ['ts-jest', {}]
     }
   };

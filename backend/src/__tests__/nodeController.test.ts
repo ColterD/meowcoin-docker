@@ -3,8 +3,10 @@ import { Request, Response } from 'express';
 import { getStatus } from '../controllers/nodeController';
 import * as nodeService from '../services/nodeService';
 
-// Mock nodeService
-jest.mock('../services/nodeService');
+// Properly mock the nodeService module
+jest.mock('../services/nodeService', () => ({
+  getNodeStatus: jest.fn()
+}));
 
 describe('nodeController', () => {
   let mockRequest: Partial<Request>;
@@ -21,6 +23,9 @@ describe('nodeController', () => {
       status: statusMock,
       json: jsonMock,
     };
+    
+    // Clear all mocks before each test
+    jest.clearAllMocks();
   });
 
   describe('getStatus', () => {
