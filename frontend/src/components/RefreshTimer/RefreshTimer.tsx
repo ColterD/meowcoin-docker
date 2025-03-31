@@ -1,6 +1,5 @@
 // frontend/src/components/RefreshTimer/RefreshTimer.tsx
-import { useState, useEffect, useCallback, memo } from 'react';
-import { useInterval } from '../../hooks/useInterval';
+import { useState, useEffect, useCallback, memo, useRef } from 'react';
 import styles from './RefreshTimer.module.css';
 
 const RefreshTimer = memo(() => {
@@ -10,6 +9,7 @@ const RefreshTimer = memo(() => {
   });
   
   const [countDown, setCountDown] = useState(refreshInterval);
+  const intervalRef = useRef<number | null>(null);
   
   // Reset countdown when interval changes
   useEffect(() => {
@@ -31,15 +31,31 @@ const RefreshTimer = memo(() => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [handleStorageChange]);
   
-  // Countdown timer with controlled render
-  useInterval(() => {
-    setCountDown((prev) => {
-      if (prev <= 1) {
-        return refreshInterval;
+  // Countdown timer with controlled render and proper cleanup
+  useEffect(() => {
+    // Clear existing interval when refreshInterval changes
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+    }
+    
+    // Set new interval
+    intervalRef.current = window.setInterval(() => {
+      setCountDown((prev) => {
+        if (prev <= 1) {
+          return refreshInterval;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    // Cleanup function to clear interval when component unmounts
+    return () => {
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
-      return prev - 1;
-    });
-  }, 1000);
+    };
+  }, [refreshInterval]);
   
   const percentage = (countDown / refreshInterval) * 100;
   

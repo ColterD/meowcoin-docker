@@ -9,11 +9,10 @@ services:
     volumes:
       - meowcoin-data:/data
       - ./config:/config
-      # Limit Docker socket permissions with read-only flag
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Removed Docker socket mount for security - implement alternative if required
     ports:
       - "${RPC_PORT:-9766}:9766"  # RPC port
-      - "${P2P_PORT:-8788}:8788"  # P2P port
+      - "${P2P_PORT:-8788}:8788"  # P2P port  
       - "${WEB_PORT:-8080}:8080"  # Web UI
     environment:
       - NODE_ENV=${NODE_ENV:-production}
@@ -45,6 +44,7 @@ services:
     # Add security options
     security_opt:
       - no-new-privileges:true
+      - seccomp=default
 
 volumes:
   meowcoin-data:

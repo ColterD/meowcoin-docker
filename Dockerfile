@@ -1,5 +1,5 @@
 # Build stage for React frontend
-FROM node:18-alpine as frontend-builder
+FROM node:18-alpine AS frontend-builder
 WORKDIR /app/frontend
 
 # Install necessary build tools
@@ -11,19 +11,24 @@ RUN npm ci
 
 # Build the frontend
 COPY frontend/ ./
-RUN npm run build
-
-# Build stage for Node.js backend
-FROM node:18-alpine as backend-builder
-WORKDIR /app/backend
-COPY backend/package*.json ./
-RUN npm ci
-COPY backend/ ./
 COPY shared/ /app/shared/
 RUN npm run build
 
+# Build stage for Node.js backend
+FROM node:18-alpine AS backend-builder
+WORKDIR /app/backend
+
+# Copy package.json and install dependencies
+COPY backend/package*.json ./
+RUN npm ci
+
+# Copy shared code and backend code
+COPY shared/ /app/shared/
+COPY backend/ ./
+RUN npm run build
+
 # Build stage for Meowcoin binaries
-FROM debian:stable-slim as meowcoin-builder
+FROM debian:bullseye-slim AS meowcoin-builder
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl ca-certificates jq wget tar gzip file && \
@@ -49,14 +54,19 @@ RUN set -ex && \
     chmod 755 /usr/local/bin/meowcoind /usr/local/bin/meowcoin-cli
 
 # Final image
-FROM debian:stable-slim
+FROM debian:bullseye-slim
+
+# Add non-root user first for better security
+RUN groupadd -g 10000 meowcoin && \
+    useradd -u 10000 -g meowcoin -s /bin/bash -m meowcoin && \
+    mkdir -p /data /config /var/www/html/api
 
 # Install dependencies - reduced list with only necessary ones
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         bash curl jq ca-certificates nodejs npm \
         procps libboost-system1.74.0 libboost-filesystem1.74.0 \
-        gosu docker.io && \
+        gosu && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /run/nginx
@@ -83,11 +93,8 @@ COPY scripts/healthcheck.sh /scripts/
 COPY scripts/backup-manager.sh /scripts/
 RUN chmod +x /scripts/*.sh
 
-# Create meowcoin user with specific UID/GID for better security
-RUN groupadd -g 10000 meowcoin && \
-    useradd -u 10000 -g meowcoin -s /bin/bash -m meowcoin && \
-    mkdir -p /data /config /var/www/html/api && \
-    chown -R meowcoin:meowcoin /data /config /var/www/html
+# Set proper ownership
+RUN chown -R meowcoin:meowcoin /data /config /var/www/html
 
 # Set up volumes and ports
 VOLUME ["/data", "/config"]
