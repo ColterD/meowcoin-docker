@@ -1,66 +1,102 @@
-import express from 'express';
-import http from 'http';
-import { Server } from 'socket.io';
-import cors from 'cors';
-import path from 'path';
-import { setupNodeMonitor } from './services/nodeMonitor';
-import { setupDiskMonitor } from './services/diskMonitor';
-import nodeRoutes from './routes/nodeRoutes';
-import { environment } from './config/environment';
+// backend/src/types/index.ts
+export interface NodeStatus {
+  status: 'running' | 'syncing' | 'stopped' | 'no_connections' | 'starting';
+  blockchain: {
+    blocks: number;
+    headers: number;
+    progress: string;
+  };
+  node: {
+    version: string;
+    subversion: string;
+    connections: number;
+    bytesReceived: number;
+    bytesSent: number;
+  };
+  system: {
+    memory: {
+      used: number;
+      total: number;
+      percent: string;
+    };
+    disk: {
+      size: string;
+      used: string;
+      percent: number;
+    };
+  };
+  settings: {
+    maxConnections: number;
+    enableTxindex: number;
+  };
+  updated: string;
+  updateAvailable?: boolean;
+  latestVersion?: string;
+}
 
-// Create Express app
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
-});
+export interface DiskUsage {
+success: boolean;
+paths: {
+  path: string;
+  sizeBytes: number;
+}[];
+}
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+export interface LogResponse {
+success: boolean;
+logs: string[];
+timestamp: number;
+}
 
-// API routes
-app.use('/api', nodeRoutes);
+export interface SettingsRequest {
+maxConnections: number;
+enableTxindex: number;
+}
 
-// Determine static file directory based on environment
-const staticDir = environment.isDevelopment
-  ? path.join(__dirname, '../../frontend/dist')
-  : '/var/www/html';
+export interface NodeControlRequest {
+action: 'restart' | 'shutdown';
+}
 
-// Static file serving
-app.use(express.static(staticDir));
+export interface UpdateRequest {
+version: string;
+}
 
-// Set up Socket.IO connection
-io.on('connection', (socket) => {
-  console.log('Client connected');
-  socket.on('disconnect', () => {
-    console.log('Client disconnected');
-  });
-});
+export interface BlockchainInfo {
+chain: string;
+blocks: number;
+headers: number;
+bestblockhash: string;
+difficulty: number;
+mediantime: number;
+verificationprogress: number;
+initialblockdownload: boolean;
+chainwork: string;
+size_on_disk: number;
+pruned: boolean;
+}
 
-// Start monitors
-setupNodeMonitor(io);
-setupDiskMonitor(io);
+export interface NetworkInfo {
+version: number;
+subversion: string;
+protocolversion: number;
+localservices: string;
+localrelay: boolean;
+timeoffset: number;
+connections: number;
+networkactive: boolean;
+networks: any[];
+relayfee: number;
+incrementalfee: number;
+}
 
-// Handle 404s for SPA
-app.get('*', (req, res) => {
-  res.sendFile(path.resolve(staticDir, 'index.html'));
-});
+export interface NetTotals {
+totalbytesrecv: number;
+totalbytessent: number;
+timeMillis: number;
+}
 
-// Start server
-const PORT = environment.port;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-// Handle graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
-  server.close(() => {
-    console.log('HTTP server closed');
-    process.exit(0);
-  });
-});
+export interface LogEntry {
+timestamp: string;
+level: string;
+message: string;
+}
