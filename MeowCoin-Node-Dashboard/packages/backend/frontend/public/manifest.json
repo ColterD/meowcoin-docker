@@ -1,0 +1,8 @@
+{
+  "short_name": "MeowCoin",
+  "name": "MeowCoin Node Dashboard",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
