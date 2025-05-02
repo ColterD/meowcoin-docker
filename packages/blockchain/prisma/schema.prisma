@@ -1,0 +1,180 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Node configuration
+model Node {
+  id            String         @id @default(uuid())
+  name          String
+  type          String
+  version       String
+  rpcEnabled    Boolean        @default(true)
+  rpcPort       Int            @default(9332)
+  rpcUsername   String
+  rpcPassword   String
+  p2pPort       Int            @default(9333)
+  dataDir       String
+  logLevel      String         @default("info")
+  maxConnections Int           @default(125)
+  maxUploadTarget Int          @default(1000)
+  maxMempool    Int            @default(300)
+  minRelayTxFee Float          @default(0.00001)
+  autoStart     Boolean        @default(true)
+  enableUpnp    Boolean        @default(true)
+  enableNatPmp  Boolean        @default(false)
+  pruneMode     Boolean        @default(false)
+  pruneSize     Int            @default(550)
+  txIndex       Boolean        @default(true)
+  addressIndex  Boolean        @default(false)
+  customParameters Json?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  metrics       NodeMetric[]
+  backups       NodeBackup[]
+  alerts        NodeAlert[]
+}
+
+// Node metrics
+model NodeMetric {
+  id              String    @id @default(uuid())
+  nodeId          String
+  cpuUsage        Float
+  memoryUsage     Float
+  diskUsage       Float
+  networkInbound  Float
+  networkOutbound Float
+  connections     Int
+  blockHeight     Int
+  timestamp       DateTime
+  node            Node      @relation(fields: [nodeId], references: [id])
+
+  @@index([nodeId, timestamp])
+}
+
+// Node backups
+model NodeBackup {
+  id          String    @id @default(uuid())
+  nodeId      String
+  blockHeight Int
+  size        Int       // in bytes
+  location    String
+  checksum    String?
+  status      String    // pending, completed, failed, deleted
+  note        String?
+  createdAt   DateTime  @default(now())
+  node        Node      @relation(fields: [nodeId], references: [id])
+
+  @@index([nodeId, createdAt])
+}
+
+// Node alerts
+model NodeAlert {
+  id            String    @id @default(uuid())
+  nodeId        String
+  type          String    // error, warning, info
+  message       String
+  data          Json?
+  acknowledged  Boolean   @default(false)
+  acknowledgedBy String?
+  acknowledgedAt DateTime?
+  createdAt     DateTime  @default(now())
+  node          Node      @relation(fields: [nodeId], references: [id])
+
+  @@index([nodeId, createdAt])
+}
+
+// Blockchain blocks
+model Block {
+  id            String    @id
+  hash          String    @unique
+  height        Int       @unique
+  version       Int
+  previousHash  String?
+  merkleRoot    String
+  time          DateTime
+  bits          String
+  nonce         Int
+  size          Int
+  weight        Int
+  transactionCount Int
+  confirmations Int
+  difficulty    Float
+  chainwork     String
+  createdAt     DateTime  @default(now())
+  transactions  Transaction[]
+
+  @@index([height])
+}
+
+// Blockchain transactions
+model Transaction {
+  id            String    @id
+  txid          String    @unique
+  hash          String
+  blockId       String?
+  version       Int
+  size          Int
+  vsize         Int
+  weight        Int
+  locktime      Int
+  fee           Float?
+  confirmations Int?
+  time          DateTime?
+  hex           String
+  createdAt     DateTime  @default(now())
+  block         Block?    @relation(fields: [blockId], references: [id])
+
+  @@index([txid])
+  @@index([blockId])
+}
+
+// Mempool transactions
+model MempoolTransaction {
+  id            String    @id @default(uuid())
+  txid          String    @unique
+  hash          String
+  size          Int
+  fee           Float
+  time          DateTime
+  height        Int
+  descendantCount Int
+  descendantSize Int
+  ancestorCount Int
+  ancestorSize  Int
+  createdAt     DateTime  @default(now())
+
+  @@index([txid])
+  @@index([time])
+}
+
+// Peer information
+model Peer {
+  id            String    @id @default(uuid())
+  addr          String
+  addrLocal     String?
+  services      String
+  lastSend      DateTime
+  lastRecv      DateTime
+  bytesSent     Int
+  bytesRecv     Int
+  connTime      DateTime
+  pingTime      Float?
+  version       Int
+  subver        String
+  inbound       Boolean
+  startingHeight Int
+  syncedBlocks  Int?
+  syncedHeaders Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([addr])
+}
