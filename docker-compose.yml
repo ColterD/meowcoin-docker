@@ -6,14 +6,13 @@ services:
       - "3000:80"
     volumes:
       - ./packages/dashboard/public:/usr/share/nginx/html
+      - ./welcome.txt:/welcome.txt:ro
     environment:
       - NGINX_HOST=localhost
       - NGINX_PORT=80
     restart: unless-stopped
     command: >
       /bin/sh -c "echo '<html><head><title>MeowCoin Platform</title><style>body{font-family:Arial,sans-serif;line-height:1.6;margin:40px;max-width:800px;margin:0 auto;padding:20px}h1{color:#3498db}pre{background:#f4f4f4;padding:15px;border-radius:5px}</style></head><body><h1>MeowCoin Platform</h1><p>Welcome to the MeowCoin Platform! This is a temporary landing page while the full platform is being set up.</p><p>Please check the setup instructions in the welcome.txt file.</p><pre>$(cat /welcome.txt)</pre></body></html>' > /usr/share/nginx/html/index.html && nginx -g 'daemon off;'"
-    volumes:
-      - ./welcome.txt:/welcome.txt:ro
 
   # MeowCoin Node (Simplified for initial setup)
   meowcoin-node:
