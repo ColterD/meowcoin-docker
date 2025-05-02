@@ -4,6 +4,53 @@ A comprehensive, enterprise-grade platform for running, managing, and monitoring
 
 ![MeowCoin Platform](https://placeholder.com/meowcoin-platform-2025.png)
 
+## Quick Start (Zero Configuration)
+
+The platform is designed for a zero-configuration initial setup. Just run these commands and you're ready to go:
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/meowcoin-docker.git
+cd meowcoin-docker
+
+# Start the platform in simplified mode
+docker-compose up -d
+
+# Access the dashboard
+open http://localhost:3000
+```
+
+That's it! The platform will automatically:
+1. Create default configuration with secure values
+2. Start essential services in simplified mode
+3. Provide a welcome page with next steps
+
+## Accessing Services
+
+After starting the platform, you can access these services:
+
+- **Dashboard**: http://localhost:3000
+- **Grafana Monitoring**: http://localhost:3001 (admin/admin)
+- **RabbitMQ Management**: http://localhost:15672 (guest/guest)
+- **PostgreSQL**: localhost:5432 (postgres/postgres)
+- **Redis**: localhost:6379
+
+## Enabling Full Functionality
+
+To enable all features of the platform:
+
+```bash
+# Run the setup script
+./setup.sh
+
+# Switch to the full configuration
+mv docker-compose.full.yml docker-compose.yml
+
+# Restart the platform
+docker-compose down
+docker-compose up -d
+```
+
 ## Features
 
 ### Core Platform
@@ -49,36 +96,32 @@ The MeowCoin Platform uses a modern microservices architecture:
 - **Cache Layer**: High-performance data caching
 - **Message Queue**: Asynchronous task processing
 
-## Getting Started
+## System Requirements
 
-### Prerequisites
-- Docker and Docker Compose (or Kubernetes for production)
-- 4GB RAM minimum (8GB+ recommended)
-- 100GB+ storage for blockchain data
+- **Docker and Docker Compose**: Required for containerization
+- **Memory**: 4GB minimum (8GB+ recommended)
+- **Storage**: 100GB+ for blockchain data
+- **CPU**: 2+ cores recommended
+- **Operating System**: Any OS that supports Docker (Linux, macOS, Windows)
 
-### Quick Start
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/meowcoin-platform.git
-cd meowcoin-platform
+## Configuration
 
-# Start the platform
-docker-compose up -d
+The platform can be configured using environment variables in the `.env` file. The setup script will create this file with secure default values, but you can customize it for your needs.
 
-# Access the dashboard
-open http://localhost:8080
-```
-
-### Configuration
-The platform can be configured using environment variables or a configuration file. See the [Configuration Guide](./docs/configuration.md) for details.
+Important configuration options:
+- `JWT_SECRET`: Secret key for JWT token generation
+- `MEOWCOIN_RPC_USER` and `MEOWCOIN_RPC_PASSWORD`: Credentials for the MeowCoin node
+- `POSTGRES_PASSWORD`: Password for the PostgreSQL database
+- `GRAFANA_ADMIN_PASSWORD`: Password for the Grafana admin user
+- `RABBITMQ_USER` and `RABBITMQ_PASSWORD`: Credentials for RabbitMQ
 
 ## Documentation
 
-- [User Guide](./docs/user-guide.md)
-- [API Reference](./docs/api-reference.md)
-- [Developer Guide](./docs/developer-guide.md)
-- [Deployment Guide](./docs/deployment-guide.md)
-- [Security Guide](./docs/security-guide.md)
+- [User Guide](./docs/user-guide/README.md)
+- [API Reference](./docs/api-reference/README.md)
+- [Developer Guide](./docs/developer-guide/README.md)
+- [Deployment Guide](./docs/deployment-guide/README.md)
+- [Security Guide](./docs/security-guide/README.md)
 
 ## License
 
