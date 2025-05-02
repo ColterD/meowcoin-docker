@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeowCoin Platform Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2980b9;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-color: #f5f5f5;
+            --dark-color: #333;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--dark-color);
+            background-color: var(--light-color);
+            margin: 0;
+            padding: 0;
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 250px;
+            background-color: var(--dark-color);
+            color: white;
+            padding-top: 20px;
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+        
+        .sidebar-header {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+        
+        .sidebar-header h3 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        
+        .sidebar-menu {
+            padding: 20px 0;
+        }
+        
+        .sidebar-menu ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .sidebar-menu li {
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .sidebar-menu li:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar-menu li.active {
+            background-color: var(--primary-color);
+        }
+        
+        .sidebar-menu li i {
+            margin-right: 10px;
+        }
+        
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+        
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .dashboard-header h1 {
+            margin: 0;
+        }
+        
+        .dashboard-header .btn {
+            margin-left: 10px;
+        }
+        
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px 20px;
+            font-weight: bold;
+        }
+        
+        .card-body {
+            padding: 20px;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-indicator.online {
+            background-color: var(--success-color);
+        }
+        
+        .status-indicator.offline {
+            background-color: var(--danger-color);
+        }
+        
+        .status-indicator.warning {
+            background-color: var(--warning-color);
+        }
+        
+        .node-stats {
+            display: flex;
+            flex-wrap: wrap;
+            margin: 0 -10px;
+        }
+        
+        .stat-item {
+            flex: 1;
+            min-width: 150px;
+            margin: 10px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            text-align: center;
+        }
+        
+        .stat-item .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .stat-item .label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        
+        .progress {
+            height: 10px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+        }
+        
+        .progress-bar {
+            background-color: var(--primary-color);
+        }
+        
+        .progress-bar.bg-warning {
+            background-color: var(--warning-color) !important;
+        }
+        
+        .progress-bar.bg-danger {
+            background-color: var(--danger-color) !important;
+        }
+        
+        .transaction-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .transaction-item {
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .transaction-item:last-child {
+            border-bottom: none;
+        }
+        
+        .transaction-item .transaction-id {
+            font-family: monospace;
+            color: var(--primary-color);
+        }
+        
+        .transaction-item .transaction-amount {
+            font-weight: bold;
+        }
+        
+        .transaction-item .transaction-time {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .settings-section {
+            margin-bottom: 30px;
+        }
+        
+        .settings-section h3 {
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        
+        .form-check {
+            margin-bottom: 20px;
+        }
+        
+        .form-check input {
+            margin-right: 10px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #27ae60;
+        }
+        
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+        
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+        
+        .alert-info {
+            color: #0c5460;
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+        }
+        
+        .alert-warning {
+            color: #856404;
+            background-color: #fff3cd;
+            border-color: #ffeeba;
+        }
+        
+        .alert-success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        
+        .alert-danger {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 70px;
+                overflow: hidden;
+            }
+            
+            .sidebar-header h3 {
+                display: none;
+            }
+            
+            .sidebar-menu li span {
+                display: none;
+            }
+            
+            .sidebar-menu li i {
+                margin-right: 0;
+                font-size: 1.2rem;
+            }
+            
+            .main-content {
+                margin-left: 70px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3>MeowCoin Platform</h3>
+        </div>
+        <div class="sidebar-menu">
+            <ul>
+                <li class="active" onclick="showTab('dashboard')">
+                    <i class="bi bi-speedometer2"></i>
+                    <span>Dashboard</span>
+                </li>
+                <li onclick="showTab('nodes')">
+                    <i class="bi bi-hdd-network"></i>
+                    <span>Nodes</span>
+                </li>
+                <li onclick="showTab('transactions')">
+                    <i class="bi bi-arrow-left-right"></i>
+                    <span>Transactions</span>
+                </li>
+                <li onclick="showTab('wallet')">
+                    <i class="bi bi-wallet2"></i>
+                    <span>Wallet</span>
+                </li>
+                <li onclick="showTab('mining')">
+                    <i class="bi bi-gem"></i>
+                    <span>Mining</span>
+                </li>
+                <li onclick="showTab('analytics')">
+                    <i class="bi bi-graph-up"></i>
+                    <span>Analytics</span>
+                </li>
+                <li onclick="showTab('settings')">
+                    <i class="bi bi-gear"></i>
+                    <span>Settings</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="main-content">
+        <!-- Dashboard Tab -->
+        <div class="tab-content active" id="dashboard-tab">
+            <div class="dashboard-header">
+                <h1>Dashboard</h1>
+                <div>
+                    <button class="btn btn-primary" onclick="refreshData()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            Node Status
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="status-indicator online"></div>
+                                <span class="fw-bold">MeowNode-1</span>
+                                <span class="ms-auto">Online</span>
+                            </div>
+                            
+                            <div class="node-stats">
+                                <div class="stat-item">
+                                    <div class="value">125</div>
+                                    <div class="label">Connections</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="value">12,345</div>
+                                    <div class="label">Blocks</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="value">98.7%</div>
+                                    <div class="label">Uptime</div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>CPU Usage</span>
+                                    <span>45%</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" style="width: 45%"></div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>Memory Usage</span>
+                                    <span>78%</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar bg-warning" role="progressbar" style="width: 78%"></div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>Disk Usage</span>
+                                    <span>32%</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" style="width: 32%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <button class="btn btn-success">Start</button>
+                                <button class="btn btn-danger">Stop</button>
+                                <button class="btn btn-secondary">Restart</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            Wallet Overview
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h5 class="mb-0">Total Balance</h5>
+                                    <h2 class="mb-0">1,234.56789 MEOW</h2>
+                                </div>
+                                <button class="btn btn-primary">Send</button>
+                            </div>
+                            
+                            <h5>Recent Transactions</h5>
+                            <div class="transaction-list">
+                                <div class="transaction-item">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="transaction-id">a1b2c3d4e5f6...</span>
+                                        <span class="transaction-amount text-success">+10.5 MEOW</span>
+                                    </div>
+                                    <div class="transaction-time">2 hours ago</div>
+                                </div>
+                                <div class="transaction-item">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="transaction-id">f6e5d4c3b2a1...</span>
+                                        <span class="transaction-amount text-danger">-5.25 MEOW</span>
+                                    </div>
+                                    <div class="transaction-time">5 hours ago</div>
+                                </div>
+                                <div class="transaction-item">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="transaction-id">1a2b3c4d5e6f...</span>
+                                        <span class="transaction-amount text-success">+20.0 MEOW</span>
+                                    </div>
+                                    <div class="transaction-time">1 day ago</div>
+                                </div>
+                                <div class="transaction-item">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="transaction-id">6f5e4d3c2b1a...</span>
+                                        <span class="transaction-amount text-danger">-15.75 MEOW</span>
+                                    </div>
+                                    <div class="transaction-time">2 days ago</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            Network Activity
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="networkChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Nodes Tab -->
+        <div class="tab-content" id="nodes-tab">
+            <div class="dashboard-header">
+                <h1>Nodes</h1>
+                <div>
+                    <button class="btn btn-success">
+                        <i class="bi bi-plus"></i> Add Node
+                    </button>
+                    <button class="btn btn-primary" onclick="refreshData()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            Node List
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Status</th>
+                                            <th>Version</th>
+                                            <th>Connections</th>
+                                            <th>Blocks</th>
+                                            <th>Last Updated</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>MeowNode-1</td>
+                                            <td><span class="badge bg-success">Online</span></td>
+                                            <td>v2.0.0</td>
+                                            <td>125</td>
+                                            <td>12,345</td>
+                                            <td>2 minutes ago</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Details</button>
+                                                <button class="btn btn-sm btn-danger">Stop</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>MeowNode-2</td>
+                                            <td><span class="badge bg-danger">Offline</span></td>
+                                            <td>v2.0.0</td>
+                                            <td>0</td>
+                                            <td>12,340</td>
+                                            <td>1 day ago</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Details</button>
+                                                <button class="btn btn-sm btn-success">Start</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>MeowNode-3</td>
+                                            <td><span class="badge bg-warning">Syncing</span></td>
+                                            <td>v2.0.0</td>
+                                            <td>78</td>
+                                            <td>10,123</td>
+                                            <td>5 minutes ago</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Details</button>
+                                                <button class="btn btn-sm btn-danger">Stop</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Transactions Tab -->
+        <div class="tab-content" id="transactions-tab">
+            <div class="dashboard-header">
+                <h1>Transactions</h1>
+                <div>
+                    <button class="btn btn-primary" onclick="refreshData()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            Transaction History
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Transaction ID</th>
+                                            <th>Type</th>
+                                            <th>Amount</th>
+                                            <th>Fee</th>
+                                            <th>Date</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><span class="transaction-id">a1b2c3d4e5f6...</span></td>
+                                            <td>Received</td>
+                                            <td class="text-success">+10.5 MEOW</td>
+                                            <td>0.001 MEOW</td>
+                                            <td>May 2, 2025 10:30 AM</td>
+                                            <td><span class="badge bg-success">Confirmed</span></td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Details</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><span class="transaction-id">f6e5d4c3b2a1...</span></td>
+                                            <td>Sent</td>
+                                            <td class="text-danger">-5.25 MEOW</td>
+                                            <td>0.001 MEOW</td>
+                                            <td>May 2, 2025 7:15 AM</td>
+                                            <td><span class="badge bg-success">Confirmed</span></td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Details</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><span class="transaction-id">1a2b3c4d5e6f...</span></td>
+                                            <td>Received</td>
+                                            <td class="text-success">+20.0 MEOW</td>
+                                            <td>0.001 MEOW</td>
+                                            <td>May 1, 2025 3:45 PM</td>
+                                            <td><span class="badge bg-success">Confirmed</span></td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Details</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><span class="transaction-id">6f5e4d3c2b1a...</span></td>
+                                            <td>Sent</td>
+                                            <td class="text-danger">-15.75 MEOW</td>
+                                            <td>0.001 MEOW</td>
+                                            <td>Apr 30, 2025 9:20 AM</td>
+                                            <td><span class="badge bg-success">Confirmed</span></td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Details</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><span class="transaction-id">2b3c4d5e6f1a...</span></td>
+                                            <td>Sent</td>
+                                            <td class="text-danger">-7.5 MEOW</td>
+                                            <td>0.001 MEOW</td>
+                                            <td>Apr 29, 2025 2:10 PM</td>
+                                            <td><span class="badge bg-success">Confirmed</span></td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Details</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Wallet Tab -->
+        <div class="tab-content" id="wallet-tab">
+            <div class="dashboard-header">
+                <h1>Wallet</h1>
+                <div>
+                    <button class="btn btn-success">
+                        <i class="bi bi-plus"></i> New Address
+                    </button>
+                    <button class="btn btn-primary">
+                        <i class="bi bi-arrow-up-right"></i> Send
+                    </button>
+                    <button class="btn btn-secondary">
+                        <i class="bi bi-arrow-down-left"></i> Receive
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            Wallet Summary
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h5 class="mb-0">Total Balance</h5>
+                                    <h2 class="mb-0">1,234.56789 MEOW</h2>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Available:</span>
+                                <span>1,234.56789 MEOW</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Pending:</span>
+                                <span>0.00000 MEOW</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Immature:</span>
+                                <span>0.00000 MEOW</span>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <button class="btn btn-primary">Backup Wallet</button>
+                                <button class="btn btn-secondary">Encrypt Wallet</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            Send MeowCoin
+                        </div>
+                        <div class="card-body">
+                            <form>
+                                <div class="form-group">
+                                    <label for="recipient-address">Recipient Address</label>
+                                    <input type="text" class="form-control" id="recipient-address" placeholder="Enter recipient address">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="send-amount">Amount</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="send-amount" placeholder="0.00000000">
+                                        <span class="input-group-text">MEOW</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="transaction-fee">Transaction Fee</label>
+                                    <select class="form-control" id="transaction-fee">
+                                        <option value="low">Low (0.0001 MEOW)</option>
+                                        <option value="medium" selected>Medium (0.001 MEOW)</option>
+                                        <option value="high">High (0.01 MEOW)</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary mt-3">Send</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            Addresses
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Label</th>
+                                            <th>Address</th>
+                                            <th>Balance</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Default</td>
+                                            <td>MeowXyz123...</td>
+                                            <td>1,234.56789 MEOW</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Copy</button>
+                                                <button class="btn btn-sm btn-secondary">QR Code</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>Mining</td>
+                                            <td>MeowAbc456...</td>
+                                            <td>0.00000 MEOW</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Copy</button>
+                                                <button class="btn btn-sm btn-secondary">QR Code</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>Savings</td>
+                                            <td>MeowDef789...</td>
+                                            <td>0.00000 MEOW</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Copy</button>
+                                                <button class="btn btn-sm btn-secondary">QR Code</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mining Tab -->
+        <div class="tab-content" id="mining-tab">
+            <div class="dashboard-header">
+                <h1>Mining</h1>
+                <div>
+                    <button class="btn btn-success" id="start-mining-btn">
+                        <i class="bi bi-play"></i> Start Mining
+                    </button>
+                    <button class="btn btn-danger" id="stop-mining-btn" style="display: none;">
+                        <i class="bi bi-stop"></i> Stop Mining
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            Mining Status
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h5 class="mb-0">Status</h5>
+                                    <h3 class="mb-0 text-danger">Not Mining</h3>
+                                </div>
+                            </div>
+                            
+                            <div class="node-stats">
+                                <div class="stat-item">
+                                    <div class="value">0</div>
+                                    <div class="label">Hashrate (H/s)</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="value">0</div>
+                                    <div class="label">Shares Accepted</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="value">0</div>
+                                    <div class="label">Blocks Found</div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <div class="form-group">
+                                    <label for="mining-address">Mining Address</label>
+                                    <input type="text" class="form-control" id="mining-address" value="MeowXyz123..." readonly>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="mining-threads">Mining Threads</label>
+                                    <input type="number" class="form-control" id="mining-threads" value="4" min="1" max="16">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            Mining Rewards
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h5 class="mb-0">Total Mined</h5>
+                                    <h2 class="mb-0">0.00000 MEOW</h2>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Last 24 Hours:</span>
+                                <span>0.00000 MEOW</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Last 7 Days:</span>
+                                <span>0.00000 MEOW</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Last 30 Days:</span>
+                                <span>0.00000 MEOW</span>
+                            </div>
+                            
+                            <div class="chart-container mt-4">
+                                <canvas id="miningRewardsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            Mining Pool Configuration
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="solo-mining" checked>
+                                <label class="form-check-label" for="solo-mining">
+                                    Solo Mining
+                                </label>
+                            </div>
+                            
+                            <div id="pool-config" style="display: none;">
+                                <div class="form-group">
+                                    <label for="pool-url">Pool URL</label>
+                                    <input type="text" class="form-control" id="pool-url" placeholder="stratum+tcp://pool.example.com:3333">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="pool-username">Username</label>
+                                    <input type="text" class="form-control" id="pool-username" placeholder="Your wallet address or username">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="pool-password">Password</label>
+                                    <input type="password" class="form-control" id="pool-password" placeholder="Password (often 'x')">
+                                </div>
+                            </div>
+                            
+                            <button class="btn btn-primary mt-3">Save Configuration</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Analytics Tab -->
+        <div class="tab-content" id="analytics-tab">
+            <div class="dashboard-header">
+                <h1>Analytics</h1>
+                <div>
+                    <button class="btn btn-primary" onclick="refreshData()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            Network Hashrate
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="hashrateChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            Block Time
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="blockTimeChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            Transaction Volume
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="transactionVolumeChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            Difficulty
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="difficultyChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Settings Tab -->
+        <div class="tab-content" id="settings-tab">
+            <div class="dashboard-header">
+                <h1>Settings</h1>
+                <div>
+                    <button class="btn btn-primary" id="save-settings-btn">
+                        <i class="bi bi-save"></i> Save Settings
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            General Settings
+                        </div>
+                        <div class="card-body">
+                            <div class="settings-section">
+                                <h3>Node Configuration</h3>
+                                
+                                <div class="form-group">
+                                    <label for="node-name-setting">Node Name</label>
+                                    <input type="text" class="form-control" id="node-name-setting" value="MeowNode-1">
+                                </div>
+                                
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="rpc-enabled-setting" checked>
+                                    <label class="form-check-label" for="rpc-enabled-setting">
+                                        Enable RPC
+                                    </label>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="rpc-port-setting">RPC Port</label>
+                                    <input type="text" class="form-control" id="rpc-port-setting" value="9332">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="p2p-port-setting">P2P Port</label>
+                                    <input type="text" class="form-control" id="p2p-port-setting" value="9333">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="max-connections-setting">Max Connections</label>
+                                    <input type="number" class="form-control" id="max-connections-setting" value="125">
+                                </div>
+                            </div>
+                            
+                            <div class="settings-section">
+                                <h3>Database Configuration</h3>
+                                
+                                <div class="form-group">
+                                    <label for="db-type-setting">Database Type</label>
+                                    <select class="form-control" id="db-type-setting">
+                                        <option value="sqlite">SQLite</option>
+                                        <option value="builtin" selected>Built-in PostgreSQL & Redis</option>
+                                        <option value="custom">Custom Configuration</option>
+                                    </select>
+                                </div>
+                                
+                                <div id="custom-db-settings" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="db-host-setting">Database Host</label>
+                                        <input type="text" class="form-control" id="db-host-setting" placeholder="Database Host">
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="db-port-setting">Database Port</label>
+                                        <input type="text" class="form-control" id="db-port-setting" value="5432">
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="db-name-setting">Database Name</label>
+                                        <input type="text" class="form-control" id="db-name-setting" value="meowcoin">
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="db-user-setting">Database User</label>
+                                        <input type="text" class="form-control" id="db-user-setting" placeholder="Database User">
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="db-password-setting">Database Password</label>
+                                        <input type="password" class="form-control" id="db-password-setting" placeholder="Database Password">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="settings-section">
+                                <h3>Security Settings</h3>
+                                
+                                <div class="form-group">
+                                    <label for="rpc-user-setting">RPC Username</label>
+                                    <input type="text" class="form-control" id="rpc-user-setting" value="meowcoinuser">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="rpc-password-setting">RPC Password</label>
+                                    <input type="password" class="form-control" id="rpc-password-setting" value="********">
+                                </div>
+                                
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="encrypt-wallet-setting">
+                                    <label class="form-check-label" for="encrypt-wallet-setting">
+                                        Encrypt Wallet
+                                    </label>
+                                </div>
+                                
+                                <div class="form-group" id="wallet-password-group" style="display: none;">
+                                    <label for="wallet-password-setting">Wallet Password</label>
+                                    <input type="password" class="form-control" id="wallet-password-setting" placeholder="Wallet Password">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Global variables
+        let currentTab = 'dashboard';
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize charts
+            initializeCharts();
+            
+            // Event listeners
+            document.getElementById('solo-mining').addEventListener('change', function() {
+                document.getElementById('pool-config').style.display = this.checked ? 'none' : 'block';
+            });
+            
+            document.getElementById('start-mining-btn').addEventListener('click', function() {
+                this.style.display = 'none';
+                document.getElementById('stop-mining-btn').style.display = 'inline-block';
+                startMining();
+            });
+            
+            document.getElementById('stop-mining-btn').addEventListener('click', function() {
+                this.style.display = 'none';
+                document.getElementById('start-mining-btn').style.display = 'inline-block';
+                stopMining();
+            });
+            
+            document.getElementById('db-type-setting').addEventListener('change', function() {
+                document.getElementById('custom-db-settings').style.display = this.value === 'custom' ? 'block' : 'none';
+            });
+            
+            document.getElementById('encrypt-wallet-setting').addEventListener('change', function() {
+                document.getElementById('wallet-password-group').style.display = this.checked ? 'block' : 'none';
+            });
+            
+            document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
+        });
+        
+        // Show tab
+        function showTab(tab) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tabContent => {
+                tabContent.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(`${tab}-tab`).classList.add('active');
+            
+            // Update sidebar
+            document.querySelectorAll('.sidebar-menu li').forEach(item => {
+                item.classList.remove('active');
+            });
+            document.querySelector(`.sidebar-menu li[onclick="showTab('${tab}')"]`).classList.add('active');
+            
+            // Update current tab
+            currentTab = tab;
+        }
+        
+        // Refresh data
+        function refreshData() {
+            console.log(`Refreshing data for ${currentTab} tab...`);
+            // In a real implementation, this would fetch data from the server
+        }
+        
+        // Initialize charts
+        function initializeCharts() {
+            // Network Activity Chart
+            const networkCtx = document.getElementById('networkChart').getContext('2d');
+            const networkChart = new Chart(networkCtx, {
+                type: 'line',
+                data: {
+                    labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
+                    datasets: [{
+                        label: 'Transactions',
+                        data: [12, 19, 3, 5, 2, 3, 7],
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            // Mining Rewards Chart
+            if (document.getElementById('miningRewardsChart')) {
+                const miningCtx = document.getElementById('miningRewardsChart').getContext('2d');
+                const miningChart = new Chart(miningCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'],
+                        datasets: [{
+                            label: 'Mining Rewards',
+                            data: [0, 0, 0, 0, 0, 0, 0],
+                            backgroundColor: '#3498db'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Analytics Charts
+            if (document.getElementById('hashrateChart')) {
+                const hashrateCtx = document.getElementById('hashrateChart').getContext('2d');
+                const hashrateChart = new Chart(hashrateCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+                        datasets: [{
+                            label: 'Network Hashrate (TH/s)',
+                            data: [12, 19, 15, 17, 21],
+                            borderColor: '#3498db',
+                            backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            }
+            
+            if (document.getElementById('blockTimeChart')) {
+                const blockTimeCtx = document.getElementById('blockTimeChart').getContext('2d');
+                const blockTimeChart = new Chart(blockTimeCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+                        datasets: [{
+                            label: 'Block Time (seconds)',
+                            data: [60, 58, 62, 59, 61],
+                            borderColor: '#2ecc71',
+                            backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            }
+            
+            if (document.getElementById('transactionVolumeChart')) {
+                const txVolumeCtx = document.getElementById('transactionVolumeChart').getContext('2d');
+                const txVolumeChart = new Chart(txVolumeCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+                        datasets: [{
+                            label: 'Transaction Volume',
+                            data: [1200, 1900, 1500, 1700, 2100],
+                            backgroundColor: '#f39c12'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            }
+            
+            if (document.getElementById('difficultyChart')) {
+                const difficultyCtx = document.getElementById('difficultyChart').getContext('2d');
+                const difficultyChart = new Chart(difficultyCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+                        datasets: [{
+                            label: 'Difficulty',
+                            data: [100, 120, 115, 130, 140],
+                            borderColor: '#e74c3c',
+                            backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            }
+        }
+        
+        // Mining functions
+        function startMining() {
+            console.log('Starting mining...');
+            // In a real implementation, this would start the mining process
+            
+            // Update UI
+            document.querySelector('#mining-tab h3').textContent = 'Mining';
+            document.querySelector('#mining-tab h3').className = 'mb-0 text-success';
+        }
+        
+        function stopMining() {
+            console.log('Stopping mining...');
+            // In a real implementation, this would stop the mining process
+            
+            // Update UI
+            document.querySelector('#mining-tab h3').textContent = 'Not Mining';
+            document.querySelector('#mining-tab h3').className = 'mb-0 text-danger';
+        }
+        
+        // Save settings
+        function saveSettings() {
+            console.log('Saving settings...');
+            // In a real implementation, this would save the settings to the server
+            
+            // Show success message
+            alert('Settings saved successfully!');
+        }
+    </script>
+</body>
+</html>

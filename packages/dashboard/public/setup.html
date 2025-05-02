@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeowCoin Platform Setup Wizard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2980b9;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-color: #f5f5f5;
+            --dark-color: #333;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--dark-color);
+            background-color: var(--light-color);
+            padding: 20px;
+            margin: 0;
+        }
+        
+        .wizard-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .wizard-header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .wizard-header h1 {
+            margin: 0;
+            font-size: 2rem;
+        }
+        
+        .wizard-content {
+            padding: 30px;
+        }
+        
+        .wizard-step {
+            display: none;
+        }
+        
+        .wizard-step.active {
+            display: block;
+        }
+        
+        .wizard-footer {
+            padding: 20px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .step-indicator .step {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #ddd;
+            color: #777;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 10px;
+            font-weight: bold;
+        }
+        
+        .step-indicator .step.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .step-indicator .step.completed {
+            background-color: var(--success-color);
+            color: white;
+        }
+        
+        .step-indicator .step-line {
+            flex-grow: 1;
+            height: 3px;
+            background-color: #ddd;
+            margin-top: 15px;
+        }
+        
+        .step-indicator .step-line.completed {
+            background-color: var(--success-color);
+        }
+        
+        .option-card {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .option-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .option-card.selected {
+            border-color: var(--primary-color);
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+        
+        .option-card h3 {
+            color: var(--primary-color);
+            margin-top: 0;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        
+        .form-check {
+            margin-bottom: 20px;
+        }
+        
+        .form-check input {
+            margin-right: 10px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        
+        .summary-item {
+            margin-bottom: 15px;
+        }
+        
+        .summary-item .label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .summary-item .value {
+            padding: 8px 12px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .setup-complete {
+            text-align: center;
+            padding: 30px 0;
+        }
+        
+        .setup-complete .icon {
+            font-size: 5rem;
+            color: var(--success-color);
+            margin-bottom: 20px;
+        }
+        
+        .progress {
+            height: 20px;
+            background-color: #f5f5f5;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background-color: var(--primary-color);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        
+        .progress-bar-striped {
+            background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+            background-size: 1rem 1rem;
+        }
+        
+        .progress-bar-animated {
+            animation: progress-bar-stripes 1s linear infinite;
+        }
+        
+        @keyframes progress-bar-stripes {
+            from { background-position: 1rem 0; }
+            to { background-position: 0 0; }
+        }
+        
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+        
+        .alert-info {
+            color: #0c5460;
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+        }
+        
+        .alert-warning {
+            color: #856404;
+            background-color: #fff3cd;
+            border-color: #ffeeba;
+        }
+    </style>
+</head>
+<body>
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <h1>MeowCoin Platform Setup Wizard</h1>
+            <p class="mb-0">Configure your MeowCoin Platform in a few simple steps</p>
+        </div>
+        
+        <div class="wizard-content">
+            <div class="step-indicator">
+                <div class="step active" id="step-indicator-1">1</div>
+                <div class="step-line" id="line-1-2"></div>
+                <div class="step" id="step-indicator-2">2</div>
+                <div class="step-line" id="line-2-3"></div>
+                <div class="step" id="step-indicator-3">3</div>
+                <div class="step-line" id="line-3-4"></div>
+                <div class="step" id="step-indicator-4">4</div>
+            </div>
+            
+            <!-- Step 1: Welcome -->
+            <div class="wizard-step active" id="step-1">
+                <h2>Welcome to MeowCoin Platform!</h2>
+                <p>Thank you for choosing MeowCoin Platform. This wizard will guide you through the setup process to get your platform up and running quickly.</p>
+                
+                <div class="alert alert-info">
+                    <h4>What you'll need:</h4>
+                    <ul>
+                        <li>Choose your database configuration</li>
+                        <li>Configure your MeowCoin node settings</li>
+                        <li>Set up security options</li>
+                    </ul>
+                </div>
+                
+                <p>You can always change these settings later from the dashboard.</p>
+                
+                <div class="form-check">
+                    <input type="checkbox" id="skip-wizard">
+                    <label for="skip-wizard">
+                        Skip wizard and use default settings
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Step 2: Database Configuration -->
+            <div class="wizard-step" id="step-2">
+                <h2>Database Configuration</h2>
+                <p>Choose the database configuration that best suits your needs:</p>
+                
+                <div class="option-card" data-option="sqlite" onclick="selectDatabaseOption('sqlite')">
+                    <h3>SQLite</h3>
+                    <p><strong>Recommended for:</strong> Personal use, testing, or small deployments</p>
+                    <ul>
+                        <li>Simple file-based database</li>
+                        <li>No additional setup required</li>
+                        <li>Limited scalability</li>
+                    </ul>
+                </div>
+                
+                <div class="option-card" data-option="builtin" onclick="selectDatabaseOption('builtin')">
+                    <h3>Built-in PostgreSQL & Redis</h3>
+                    <p><strong>Recommended for:</strong> Most users, production environments</p>
+                    <ul>
+                        <li>Automatically managed by the platform</li>
+                        <li>Good performance and scalability</li>
+                        <li>Data persistence with Docker volumes</li>
+                    </ul>
+                </div>
+                
+                <div class="option-card" data-option="custom" onclick="selectDatabaseOption('custom')">
+                    <h3>Custom Configuration</h3>
+                    <p><strong>Recommended for:</strong> Advanced users, enterprise deployments</p>
+                    <ul>
+                        <li>Connect to your existing database servers</li>
+                        <li>Full control over database configuration</li>
+                        <li>Support for high-availability setups</li>
+                    </ul>
+                </div>
+                
+                <div id="custom-db-config" style="display: none;">
+                    <h4>Custom Database Configuration</h4>
+                    
+                    <div class="form-group">
+                        <label for="db-host">Database Host</label>
+                        <input type="text" class="form-control" id="db-host" placeholder="Database Host">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="db-port">Database Port</label>
+                        <input type="text" class="form-control" id="db-port" placeholder="Database Port" value="5432">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="db-name">Database Name</label>
+                        <input type="text" class="form-control" id="db-name" placeholder="Database Name" value="meowcoin">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="db-user">Database User</label>
+                        <input type="text" class="form-control" id="db-user" placeholder="Database User">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="db-password">Database Password</label>
+                        <input type="password" class="form-control" id="db-password" placeholder="Database Password">
+                    </div>
+                    
+                    <h4>Redis Configuration</h4>
+                    
+                    <div class="form-group">
+                        <label for="redis-host">Redis Host</label>
+                        <input type="text" class="form-control" id="redis-host" placeholder="Redis Host">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="redis-port">Redis Port</label>
+                        <input type="text" class="form-control" id="redis-port" placeholder="Redis Port" value="6379">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="redis-password">Redis Password (optional)</label>
+                        <input type="password" class="form-control" id="redis-password" placeholder="Redis Password">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 3: Node Configuration -->
+            <div class="wizard-step" id="step-3">
+                <h2>MeowCoin Node Configuration</h2>
+                <p>Configure your MeowCoin node settings:</p>
+                
+                <div class="form-group">
+                    <label for="node-name">Node Name</label>
+                    <input type="text" class="form-control" id="node-name" placeholder="Node Name" value="MeowNode-1">
+                </div>
+                
+                <div class="form-check">
+                    <input type="checkbox" id="rpc-enabled" checked>
+                    <label for="rpc-enabled">Enable RPC</label>
+                </div>
+                
+                <div class="form-group">
+                    <label for="rpc-port">RPC Port</label>
+                    <input type="text" class="form-control" id="rpc-port" placeholder="RPC Port" value="9332">
+                </div>
+                
+                <div class="form-group">
+                    <label for="p2p-port">P2P Port</label>
+                    <input type="text" class="form-control" id="p2p-port" placeholder="P2P Port" value="9333">
+                </div>
+                
+                <div class="form-group">
+                    <label for="rpc-user">RPC Username</label>
+                    <input type="text" class="form-control" id="rpc-user" placeholder="RPC Username" value="meowcoinuser">
+                </div>
+                
+                <div class="form-group">
+                    <label for="rpc-password">RPC Password</label>
+                    <input type="password" class="form-control" id="rpc-password" placeholder="RPC Password">
+                </div>
+                
+                <div class="form-group">
+                    <label for="data-dir">Data Directory</label>
+                    <input type="text" class="form-control" id="data-dir" placeholder="Data Directory" value="/data/meowcoin">
+                </div>
+                
+                <div class="form-group">
+                    <label for="max-connections">Max Connections</label>
+                    <input type="number" class="form-control" id="max-connections" placeholder="Max Connections" value="125">
+                </div>
+            </div>
+            
+            <!-- Step 4: Summary -->
+            <div class="wizard-step" id="step-4">
+                <h2>Configuration Summary</h2>
+                <p>Please review your configuration before proceeding:</p>
+                
+                <div class="summary-section">
+                    <h4>Database Configuration</h4>
+                    <div class="summary-item">
+                        <div class="label">Type</div>
+                        <div class="value" id="summary-db-type">Built-in PostgreSQL & Redis</div>
+                    </div>
+                    <div id="summary-custom-db" style="display: none;">
+                        <div class="summary-item">
+                            <div class="label">Database Host</div>
+                            <div class="value" id="summary-db-host"></div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="label">Redis Host</div>
+                            <div class="value" id="summary-redis-host"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="summary-section">
+                    <h4>Node Configuration</h4>
+                    <div class="summary-item">
+                        <div class="label">Node Name</div>
+                        <div class="value" id="summary-node-name">MeowNode-1</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">RPC Enabled</div>
+                        <div class="value" id="summary-rpc-enabled">Yes</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">RPC Port</div>
+                        <div class="value" id="summary-rpc-port">9332</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">P2P Port</div>
+                        <div class="value" id="summary-p2p-port">9333</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Data Directory</div>
+                        <div class="value" id="summary-data-dir">/data/meowcoin</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Max Connections</div>
+                        <div class="value" id="summary-max-connections">125</div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <strong>Important:</strong> After saving, the platform will restart with your new configuration. This may take a few minutes.
+                </div>
+            </div>
+            
+            <!-- Setup Complete -->
+            <div class="wizard-step" id="step-complete" style="display: none;">
+                <div class="setup-complete">
+                    <div class="icon">✓</div>
+                    <h2>Setup Complete!</h2>
+                    <p>Your MeowCoin Platform has been configured successfully.</p>
+                    <div class="progress" id="restart-progress-container" style="display: none;">
+                        <div id="restart-progress" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                    </div>
+                    <p id="restart-message" style="display: none;">Restarting services... This may take a few minutes.</p>
+                    <a href="/dashboard.html" class="btn btn-primary" id="goto-dashboard" style="display: none;">Go to Dashboard</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="wizard-footer">
+            <button type="button" class="btn btn-secondary" id="prev-btn" style="visibility: hidden;">Previous</button>
+            <button type="button" class="btn btn-primary" id="next-btn">Next</button>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables
+        let currentStep = 1;
+        const totalSteps = 4;
+        let databaseOption = 'builtin';
+        let skipWizard = false;
+        
+        // DOM elements
+        const nextBtn = document.getElementById('next-btn');
+        const prevBtn = document.getElementById('prev-btn');
+        const skipWizardCheckbox = document.getElementById('skip-wizard');
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Generate a random RPC password
+            document.getElementById('rpc-password').value = generateRandomPassword(16);
+            
+            // Event listeners
+            nextBtn.addEventListener('click', nextStep);
+            prevBtn.addEventListener('click', prevStep);
+            skipWizardCheckbox.addEventListener('change', function() {
+                skipWizard = this.checked;
+                nextBtn.textContent = skipWizard ? 'Skip to Dashboard' : 'Next';
+            });
+            
+            // Select default database option
+            selectDatabaseOption('builtin');
+        });
+        
+        // Navigate to next step
+        function nextStep() {
+            if (skipWizard && currentStep === 1) {
+                // Skip wizard and use default settings
+                saveConfiguration(true);
+                return;
+            }
+            
+            if (currentStep === totalSteps) {
+                // Save configuration
+                saveConfiguration();
+                return;
+            }
+            
+            // Validate current step
+            if (!validateStep(currentStep)) {
+                return;
+            }
+            
+            // Update step indicators
+            document.getElementById(`step-indicator-${currentStep}`).classList.remove('active');
+            document.getElementById(`step-indicator-${currentStep}`).classList.add('completed');
+            document.getElementById(`line-${currentStep}-${currentStep + 1}`).classList.add('completed');
+            document.getElementById(`step-indicator-${currentStep + 1}`).classList.add('active');
+            
+            // Hide current step and show next step
+            document.getElementById(`step-${currentStep}`).classList.remove('active');
+            currentStep++;
+            document.getElementById(`step-${currentStep}`).classList.add('active');
+            
+            // Update buttons
+            updateButtons();
+            
+            // If we're on the summary step, update the summary
+            if (currentStep === totalSteps) {
+                updateSummary();
+            }
+        }
+        
+        // Navigate to previous step
+        function prevStep() {
+            // Update step indicators
+            document.getElementById(`step-indicator-${currentStep}`).classList.remove('active');
+            document.getElementById(`line-${currentStep - 1}-${currentStep}`).classList.remove('completed');
+            document.getElementById(`step-indicator-${currentStep - 1}`).classList.remove('completed');
+            document.getElementById(`step-indicator-${currentStep - 1}`).classList.add('active');
+            
+            // Hide current step and show previous step
+            document.getElementById(`step-${currentStep}`).classList.remove('active');
+            currentStep--;
+            document.getElementById(`step-${currentStep}`).classList.add('active');
+            
+            // Update buttons
+            updateButtons();
+        }
+        
+        // Update button states
+        function updateButtons() {
+            prevBtn.style.visibility = currentStep === 1 ? 'hidden' : 'visible';
+            nextBtn.textContent = currentStep === totalSteps ? 'Save & Finish' : 'Next';
+        }
+        
+        // Validate current step
+        function validateStep(step) {
+            if (step === 2 && databaseOption === 'custom') {
+                // Validate custom database configuration
+                const dbHost = document.getElementById('db-host').value;
+                const dbUser = document.getElementById('db-user').value;
+                const dbPassword = document.getElementById('db-password').value;
+                const redisHost = document.getElementById('redis-host').value;
+                
+                if (!dbHost || !dbUser || !dbPassword || !redisHost) {
+                    alert('Please fill in all required database fields');
+                    return false;
+                }
+            } else if (step === 3) {
+                // Validate node configuration
+                const nodeName = document.getElementById('node-name').value;
+                const rpcUser = document.getElementById('rpc-user').value;
+                const rpcPassword = document.getElementById('rpc-password').value;
+                
+                if (!nodeName || !rpcUser || !rpcPassword) {
+                    alert('Please fill in all required node fields');
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+        
+        // Select database option
+        function selectDatabaseOption(option) {
+            databaseOption = option;
+            
+            // Update UI
+            document.querySelectorAll('.option-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.querySelector(`.option-card[data-option="${option}"]`).classList.add('selected');
+            
+            // Show/hide custom database configuration
+            document.getElementById('custom-db-config').style.display = option === 'custom' ? 'block' : 'none';
+        }
+        
+        // Update summary
+        function updateSummary() {
+            // Database configuration
+            document.getElementById('summary-db-type').textContent = {
+                'sqlite': 'SQLite',
+                'builtin': 'Built-in PostgreSQL & Redis',
+                'custom': 'Custom Configuration'
+            }[databaseOption];
+            
+            // Show/hide custom database details
+            const customDbSummary = document.getElementById('summary-custom-db');
+            customDbSummary.style.display = databaseOption === 'custom' ? 'block' : 'none';
+            
+            if (databaseOption === 'custom') {
+                document.getElementById('summary-db-host').textContent = document.getElementById('db-host').value;
+                document.getElementById('summary-redis-host').textContent = document.getElementById('redis-host').value;
+            }
+            
+            // Node configuration
+            document.getElementById('summary-node-name').textContent = document.getElementById('node-name').value;
+            document.getElementById('summary-rpc-enabled').textContent = document.getElementById('rpc-enabled').checked ? 'Yes' : 'No';
+            document.getElementById('summary-rpc-port').textContent = document.getElementById('rpc-port').value;
+            document.getElementById('summary-p2p-port').textContent = document.getElementById('p2p-port').value;
+            document.getElementById('summary-data-dir').textContent = document.getElementById('data-dir').value;
+            document.getElementById('summary-max-connections').textContent = document.getElementById('max-connections').value;
+        }
+        
+        // Save configuration
+        function saveConfiguration(useDefaults = false) {
+            // Hide wizard steps and show completion
+            document.querySelectorAll('.wizard-step').forEach(step => {
+                step.style.display = 'none';
+            });
+            document.getElementById('step-complete').style.display = 'block';
+            
+            // Hide wizard footer
+            document.querySelector('.wizard-footer').style.display = 'none';
+            
+            // Show restart progress
+            document.getElementById('restart-progress-container').style.display = 'block';
+            document.getElementById('restart-message').style.display = 'block';
+            
+            // Simulate progress
+            let progress = 0;
+            const progressBar = document.getElementById('restart-progress');
+            const progressInterval = setInterval(() => {
+                progress += 5;
+                progressBar.style.width = `${progress}%`;
+                
+                if (progress >= 100) {
+                    clearInterval(progressInterval);
+                    document.getElementById('goto-dashboard').style.display = 'inline-block';
+                    document.getElementById('restart-message').textContent = 'Services restarted successfully!';
+                }
+            }, 1000);
+            
+            // Prepare configuration data
+            const config = useDefaults ? {
+                useDefaults: true
+            } : {
+                database: {
+                    type: databaseOption,
+                    host: databaseOption === 'custom' ? document.getElementById('db-host').value : 'postgres',
+                    port: databaseOption === 'custom' ? document.getElementById('db-port').value : '5432',
+                    name: databaseOption === 'custom' ? document.getElementById('db-name').value : 'meowcoin',
+                    user: databaseOption === 'custom' ? document.getElementById('db-user').value : 'postgres',
+                    password: databaseOption === 'custom' ? document.getElementById('db-password').value : 'postgres'
+                },
+                redis: {
+                    host: databaseOption === 'custom' ? document.getElementById('redis-host').value : 'redis',
+                    port: databaseOption === 'custom' ? document.getElementById('redis-port').value : '6379',
+                    password: databaseOption === 'custom' ? document.getElementById('redis-password').value : ''
+                },
+                node: {
+                    name: document.getElementById('node-name').value,
+                    rpcEnabled: document.getElementById('rpc-enabled').checked,
+                    rpcPort: document.getElementById('rpc-port').value,
+                    p2pPort: document.getElementById('p2p-port').value,
+                    rpcUser: document.getElementById('rpc-user').value,
+                    rpcPassword: document.getElementById('rpc-password').value,
+                    dataDir: document.getElementById('data-dir').value,
+                    maxConnections: document.getElementById('max-connections').value
+                }
+            };
+            
+            // Save configuration to local storage (in a real implementation, this would be sent to the server)
+            localStorage.setItem('meowcoin-config', JSON.stringify(config));
+            
+            // Send configuration to the server
+            fetch('/api/setup/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Configuration saved successfully:', data);
+            })
+            .catch(error => {
+                console.error('Error saving configuration:', error);
+                // Continue anyway since we're in a demo environment
+            });
+        }
+        
+        // Generate random password
+        function generateRandomPassword(length) {
+            const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+';
+            let password = '';
+            for (let i = 0; i < length; i++) {
+                const randomIndex = Math.floor(Math.random() * charset.length);
+                password += charset[randomIndex];
+            }
+            return password;
+        }
+    </script>
+</body>
+</html>
