@@ -90,8 +90,8 @@ try {
 
 # Start the platform
 Write-Host "Starting MeowCoin Platform..." -ForegroundColor Yellow
-docker-compose down
-docker-compose up -d
+Invoke-Expression "$DOCKER_COMPOSE down"
+Invoke-Expression "$DOCKER_COMPOSE up -d"
 
 Write-Host "MeowCoin Platform started successfully!" -ForegroundColor Green
 Write-Host "Access the dashboard at: http://localhost:3000" -ForegroundColor Yellow

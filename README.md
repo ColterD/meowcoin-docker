@@ -16,11 +16,11 @@ cd meowcoin-docker
 # Start the platform (Linux/macOS)
 ./start.sh
 
-# Start the platform (Windows PowerShell)
+# OR for Windows PowerShell
 .\start.ps1
 
-# Access the setup wizard in your browser
-open http://localhost:3000
+# The setup wizard will automatically open in your browser
+# If it doesn't, navigate to: http://localhost:3000
 ```
 
 That's it! The platform will automatically:
@@ -28,11 +28,24 @@ That's it! The platform will automatically:
 2. Open a web-based setup wizard
 3. Guide you through the configuration process
 
+### Setup Wizard Features
+
 The setup wizard allows you to configure:
-- Database options (SQLite, Built-in PostgreSQL, or Custom)
-- MeowCoin node settings
-- Security settings
-- Platform features
+
+- **Database Options**:
+  - **SQLite**: Simple file-based database for personal use or testing
+  - **Built-in PostgreSQL**: Automatically managed database for production use
+  - **Custom Configuration**: Connect to your existing database servers
+
+- **Node Configuration**:
+  - Configure your MeowCoin node settings
+  - Set RPC credentials
+  - Adjust network parameters
+
+- **Security Settings**:
+  - Set up secure passwords
+  - Configure access controls
+  - Enable encryption options
 
 ## Accessing Services
 
