@@ -169,7 +169,135 @@ services:
         echo '{\"setupCompleted\":false,\"database\":{\"type\":\"sqlite\",\"path\":\"/config/meowcoin.db\"},\"node\":{\"name\":\"MeowNode-1\",\"rpcEnabled\":true}}' > /config/config.json; 
       fi && 
       echo 'Setup service running on port 3002' && 
-      node -e 'const http=require(\"http\");const fs=require(\"fs\");const url=require(\"url\");const server=http.createServer((req,res)=>{const parsedUrl=url.parse(req.url,true);if(parsedUrl.pathname===\"/api/setup/status\"){const config=JSON.parse(fs.readFileSync(\"/config/config.json\"));res.writeHead(200,{\"Content-Type\":\"application/json\",\"Access-Control-Allow-Origin\":\"*\"});res.end(JSON.stringify({setupCompleted:config.setupCompleted}));}else if(parsedUrl.pathname===\"/api/setup/save\"&&req.method===\"POST\"){let body=\"\";req.on(\"data\",chunk=>{body+=chunk.toString();});req.on(\"end\",()=>{const config=JSON.parse(body);fs.writeFileSync(\"/config/config.json\",JSON.stringify({...JSON.parse(fs.readFileSync(\"/config/config.json\")),setupCompleted:true,...config},null,2));res.writeHead(200,{\"Content-Type\":\"application/json\",\"Access-Control-Allow-Origin\":\"*\"});res.end(JSON.stringify({success:true}));});}else{res.writeHead(404);res.end();}});server.listen(3002,()=>console.log(\"Setup server running on port 3002\"));';"
+      node -e '
+        const http = require(\"http\");
+        const fs = require(\"fs\");
+        const path = require(\"path\");
+        
+        // CORS middleware
+        const setCors = (res) => {
+          res.setHeader(\"Access-Control-Allow-Origin\", \"*\");
+          res.setHeader(\"Access-Control-Allow-Methods\", \"GET, POST, OPTIONS\");
+          res.setHeader(\"Access-Control-Allow-Headers\", \"Content-Type\");
+        };
+        
+        // Generate .env file from config
+        const generateEnvFile = (config) => {
+          let env = \"# MeowCoin Platform Configuration\\n\\n\";
+          env += \"# Generated on \" + new Date().toISOString() + \"\\n\\n\";
+          
+          // Database settings
+          env += \"# Database\\n\";
+          if (config.database.type === \"sqlite\") {
+            env += \"DATABASE_TYPE=sqlite\\n\";
+            env += \"DATABASE_PATH=/data/meowcoin.db\\n\\n\";
+          } else if (config.database.type === \"builtin\") {
+            env += \"DATABASE_TYPE=postgresql\\n\";
+            env += \"POSTGRES_USER=postgres\\n\";
+            env += \"POSTGRES_PASSWORD=postgres\\n\";
+            env += \"POSTGRES_HOST=postgres\\n\";
+            env += \"POSTGRES_PORT=5432\\n\\n\";
+          } else {
+            env += \"DATABASE_TYPE=postgresql\\n\";
+            env += \"POSTGRES_USER=\" + (config.database.user || \"postgres\") + \"\\n\";
+            env += \"POSTGRES_PASSWORD=\" + (config.database.password || \"postgres\") + \"\\n\";
+            env += \"POSTGRES_HOST=\" + (config.database.host || \"localhost\") + \"\\n\";
+            env += \"POSTGRES_PORT=\" + (config.database.port || \"5432\") + \"\\n\\n\";
+          }
+          
+          // MeowCoin Node settings
+          env += \"# MeowCoin Node\\n\";
+          env += \"MEOWCOIN_RPC_USER=\" + (config.node.rpcUser || \"meowcoinuser\") + \"\\n\";
+          env += \"MEOWCOIN_RPC_PASSWORD=\" + (config.node.rpcPassword || \"meowcoinpassword\") + \"\\n\";
+          env += \"MEOWCOIN_DATA_DIR=\" + (config.node.dataDir || \"/data/meowcoin\") + \"\\n\";
+          env += \"MEOWCOIN_TESTNET=\" + (config.node.testnet ? \"true\" : \"false\") + \"\\n\\n\";
+          
+          // Security settings
+          env += \"# Security\\n\";
+          env += \"JWT_SECRET=\" + (config.security.jwtSecret || \"meowcoin_platform_secret_key_change_in_production\") + \"\\n\";
+          env += \"ADMIN_PASSWORD=\" + (config.security.adminPassword || \"admin\") + \"\\n\";
+          env += \"GRAFANA_ADMIN_PASSWORD=\" + (config.security.grafanaPassword || \"admin\") + \"\\n\";
+          env += \"ENABLE_MFA=\" + (config.security.enableMfa ? \"true\" : \"false\") + \"\\n\";
+          env += \"ENABLE_RATE_LIMIT=\" + (config.security.enableRateLimit ? \"true\" : \"false\") + \"\\n\\n\";
+          
+          // Feature settings
+          env += \"# Features\\n\";
+          env += \"ENABLE_ANALYTICS=\" + (config.features.analytics ? \"true\" : \"false\") + \"\\n\";
+          env += \"ENABLE_NOTIFICATIONS=\" + (config.features.notifications ? \"true\" : \"false\") + \"\\n\";
+          env += \"ENABLE_MONITORING=\" + (config.features.monitoring ? \"true\" : \"false\") + \"\\n\";
+          env += \"ENABLE_AUTO_BACKUP=\" + (config.features.autoBackup ? \"true\" : \"false\") + \"\\n\\n\";
+          
+          // Email settings (if configured)
+          if (config.features.notifications && config.features.smtp && config.features.smtp.host) {
+            env += \"# Email Notifications\\n\";
+            env += \"SMTP_HOST=\" + (config.features.smtp.host || \"\") + \"\\n\";
+            env += \"SMTP_PORT=\" + (config.features.smtp.port || \"587\") + \"\\n\";
+            env += \"SMTP_USER=\" + (config.features.smtp.user || \"\") + \"\\n\";
+            env += \"SMTP_PASSWORD=\" + (config.features.smtp.password || \"\") + \"\\n\";
+          }
+          
+          return env;
+        };
+        
+        // Create HTTP server
+        const server = http.createServer((req, res) => {
+          // Handle CORS preflight requests
+          if (req.method === \"OPTIONS\") {
+            setCors(res);
+            res.writeHead(204);
+            res.end();
+            return;
+          }
+          
+          // Handle API requests
+          if (req.url === \"/api/setup/status\") {
+            setCors(res);
+            try {
+              const config = JSON.parse(fs.readFileSync(\"/config/config.json\"));
+              res.writeHead(200, {\"Content-Type\": \"application/json\"});
+              res.end(JSON.stringify({setupCompleted: config.setupCompleted || false}));
+            } catch (error) {
+              res.writeHead(500, {\"Content-Type\": \"application/json\"});
+              res.end(JSON.stringify({error: error.message}));
+            }
+          } else if (req.url === \"/api/setup\" && req.method === \"POST\") {
+            setCors(res);
+            let body = \"\";
+            req.on(\"data\", chunk => {
+              body += chunk.toString();
+            });
+            req.on(\"end\", () => {
+              try {
+                const config = JSON.parse(body);
+                
+                // Save config to config.json
+                fs.writeFileSync(\"/config/config.json\", JSON.stringify({
+                  ...JSON.parse(fs.readFileSync(\"/config/config.json\")),
+                  setupCompleted: true,
+                  ...config
+                }, null, 2));
+                
+                // Generate and save .env file
+                fs.writeFileSync(\"/app/.env\", generateEnvFile(config));
+                
+                res.writeHead(200, {\"Content-Type\": \"application/json\"});
+                res.end(JSON.stringify({success: true, message: \"Configuration saved successfully\"}));
+              } catch (error) {
+                res.writeHead(500, {\"Content-Type\": \"application/json\"});
+                res.end(JSON.stringify({success: false, message: error.message}));
+              }
+            });
+          } else {
+            res.writeHead(404, {\"Content-Type\": \"application/json\"});
+            res.end(JSON.stringify({success: false, message: \"Not found\"}));
+          }
+        });
+        
+        // Start server
+        server.listen(3002, () => {
+          console.log(\"Setup server running on port 3002\");
+        });
+      ';"
 
 networks:
   meowcoin-network:

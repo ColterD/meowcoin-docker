@@ -10,7 +10,7 @@ The platform now features a user-friendly web-based setup wizard. Just run these
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/meowcoin-docker.git
+git clone https://github.com/ColterD/meowcoin-docker.git
 cd meowcoin-docker
 
 # Start the platform (Linux/macOS)
@@ -126,14 +126,21 @@ The MeowCoin Platform uses a modern microservices architecture:
 
 ## Configuration
 
-The platform can be configured using environment variables in the `.env` file. The setup script will create this file with secure default values, but you can customize it for your needs.
+The platform can be configured in two ways:
+
+1. **Web-Based Setup Wizard**: The recommended way to configure the platform is through the setup wizard, which guides you through all configuration options with a user-friendly interface.
+
+2. **Manual Configuration**: Advanced users can edit the `.env` file directly. This file is created by the setup wizard with your chosen settings, but can be modified manually if needed.
 
 Important configuration options:
 - `JWT_SECRET`: Secret key for JWT token generation
 - `MEOWCOIN_RPC_USER` and `MEOWCOIN_RPC_PASSWORD`: Credentials for the MeowCoin node
-- `POSTGRES_PASSWORD`: Password for the PostgreSQL database
+- `DATABASE_TYPE`: Type of database to use (sqlite, postgresql)
+- `POSTGRES_PASSWORD`: Password for the PostgreSQL database (if using PostgreSQL)
 - `GRAFANA_ADMIN_PASSWORD`: Password for the Grafana admin user
 - `RABBITMQ_USER` and `RABBITMQ_PASSWORD`: Credentials for RabbitMQ
+- `ENABLE_MFA`: Enable Multi-Factor Authentication
+- `ENABLE_ANALYTICS`: Enable the analytics engine
 
 ## Documentation
 
