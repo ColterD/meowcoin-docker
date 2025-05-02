@@ -1,18 +1,15 @@
 services:
-  # Dashboard Frontend (Simplified for initial setup)
+  # Dashboard Frontend with Setup Wizard
   dashboard:
     image: nginx:alpine
     ports:
       - "3000:80"
     volumes:
       - ./packages/dashboard/public:/usr/share/nginx/html
-      - ./welcome.txt:/welcome.txt:ro
     environment:
       - NGINX_HOST=localhost
       - NGINX_PORT=80
     restart: unless-stopped
-    command: >
-      /bin/sh -c "echo '<html><head><title>MeowCoin Platform</title><style>body{font-family:Arial,sans-serif;line-height:1.6;margin:40px;max-width:800px;margin:0 auto;padding:20px}h1{color:#3498db}pre{background:#f4f4f4;padding:15px;border-radius:5px}</style></head><body><h1>MeowCoin Platform</h1><p>Welcome to the MeowCoin Platform! This is a temporary landing page while the full platform is being set up.</p><p>Please check the setup instructions in the welcome.txt file.</p><pre>$(cat /welcome.txt)</pre></body></html>' > /usr/share/nginx/html/index.html && nginx -g 'daemon off;'"
 
   # MeowCoin Node (Simplified for initial setup)
   meowcoin-node:
@@ -96,30 +93,24 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
     restart: unless-stopped
 
-  # Setup Helper Service
-  setup-helper:
-    image: alpine:latest
+  # API Service for Setup Wizard
+  api:
+    image: node:20-alpine
+    ports:
+      - "3002:3002"
     volumes:
       - ./:/app
+      - ./.env:/app/.env
     working_dir: /app
     command: >
-      /bin/sh -c "echo '=======================================' &&
-      echo '   MeowCoin Platform Setup Complete   ' &&
-      echo '=======================================' &&
-      echo 'Your MeowCoin Platform is now running in simplified mode.' &&
-      echo 'Access the dashboard at: http://localhost:3000' &&
-      echo 'Access Grafana at: http://localhost:3001 (admin/admin)' &&
-      echo 'Access RabbitMQ at: http://localhost:15672 (guest/guest)' &&
-      echo '' &&
-      echo 'To enable full functionality:' &&
-      echo '1. Review and update the .env file' &&
-      echo '2. Run the setup.sh script: ./setup.sh' &&
-      echo '3. Switch to the full docker-compose file: mv docker-compose.full.yml docker-compose.yml' &&
-      echo '4. Restart the platform: docker-compose down && docker-compose up -d' &&
-      echo '' &&
-      echo 'For more information, see the documentation in the /docs directory.' &&
-      echo '=======================================' &&
-      sleep 5"
+      /bin/sh -c "echo 'Starting MeowCoin Platform API...' &&
+      mkdir -p /app/logs &&
+      echo '{\"name\":\"meowcoin-platform-api\",\"version\":\"1.0.0\",\"main\":\"index.js\"}' > /app/package.json &&
+      echo 'const http = require(\"http\"); const fs = require(\"fs\"); const path = require(\"path\"); const server = http.createServer((req, res) => { if (req.method === \"POST\" && req.url === \"/api/setup\") { let body = \"\"; req.on(\"data\", chunk => { body += chunk.toString(); }); req.on(\"end\", () => { try { const config = JSON.parse(body); fs.writeFileSync(\"/app/.env\", generateEnvFile(config)); res.writeHead(200, {\"Content-Type\": \"application/json\"}); res.end(JSON.stringify({success: true, message: \"Configuration saved successfully\"})); } catch (error) { res.writeHead(500, {\"Content-Type\": \"application/json\"}); res.end(JSON.stringify({success: false, message: error.message})); } }); } else if (req.url === \"/api/setup/status\") { res.writeHead(200, {\"Content-Type\": \"application/json\"}); res.end(JSON.stringify({setupCompleted: false})); } else { res.writeHead(404, {\"Content-Type\": \"application/json\"}); res.end(JSON.stringify({success: false, message: \"Not found\"})); } }); function generateEnvFile(config) { let env = \"# MeowCoin Platform Configuration\\n\\n\"; env += \"# Generated on \" + new Date().toISOString() + \"\\n\\n\"; env += \"# Database\\n\"; if (config.database.type === \"sqlite\") { env += \"DATABASE_TYPE=sqlite\\n\"; env += \"DATABASE_PATH=/data/meowcoin.db\\n\\n\"; } else if (config.database.type === \"builtin\") { env += \"DATABASE_TYPE=postgresql\\n\"; env += \"POSTGRES_USER=postgres\\n\"; env += \"POSTGRES_PASSWORD=postgres\\n\"; env += \"POSTGRES_HOST=postgres\\n\"; env += \"POSTGRES_PORT=5432\\n\\n\"; } else { env += \"DATABASE_TYPE=postgresql\\n\"; env += \"POSTGRES_USER=\" + (config.database.user || \"postgres\") + \"\\n\"; env += \"POSTGRES_PASSWORD=\" + (config.database.password || \"postgres\") + \"\\n\"; env += \"POSTGRES_HOST=\" + (config.database.host || \"localhost\") + \"\\n\"; env += \"POSTGRES_PORT=\" + (config.database.port || \"5432\") + \"\\n\\n\"; } env += \"# MeowCoin Node\\n\"; env += \"MEOWCOIN_RPC_USER=\" + (config.node.rpcUser || \"meowcoinuser\") + \"\\n\"; env += \"MEOWCOIN_RPC_PASSWORD=\" + (config.node.rpcPassword || \"meowcoinpassword\") + \"\\n\"; env += \"MEOWCOIN_DATA_DIR=\" + (config.node.dataDir || \"/data/meowcoin\") + \"\\n\"; env += \"MEOWCOIN_TESTNET=\" + (config.node.testnet ? \"true\" : \"false\") + \"\\n\\n\"; env += \"# Security\\n\"; env += \"JWT_SECRET=\" + (config.security.jwtSecret || \"meowcoin_platform_secret_key_change_in_production\") + \"\\n\"; env += \"ADMIN_PASSWORD=\" + (config.security.adminPassword || \"admin\") + \"\\n\"; env += \"GRAFANA_ADMIN_PASSWORD=\" + (config.security.grafanaPassword || \"admin\") + \"\\n\"; env += \"ENABLE_MFA=\" + (config.security.enableMfa ? \"true\" : \"false\") + \"\\n\"; env += \"ENABLE_RATE_LIMIT=\" + (config.security.enableRateLimit ? \"true\" : \"false\") + \"\\n\\n\"; env += \"# Features\\n\"; env += \"ENABLE_ANALYTICS=\" + (config.features.analytics ? \"true\" : \"false\") + \"\\n\"; env += \"ENABLE_NOTIFICATIONS=\" + (config.features.notifications ? \"true\" : \"false\") + \"\\n\"; env += \"ENABLE_MONITORING=\" + (config.features.monitoring ? \"true\" : \"false\") + \"\\n\"; env += \"ENABLE_AUTO_BACKUP=\" + (config.features.autoBackup ? \"true\" : \"false\") + \"\\n\\n\"; if (config.features.notifications && config.features.smtp.host) { env += \"# Email Notifications\\n\"; env += \"SMTP_HOST=\" + (config.features.smtp.host || \"\") + \"\\n\"; env += \"SMTP_PORT=\" + (config.features.smtp.port || \"587\") + \"\\n\"; env += \"SMTP_USER=\" + (config.features.smtp.user || \"\") + \"\\n\"; env += \"SMTP_PASSWORD=\" + (config.features.smtp.password || \"\") + \"\\n\"; } return env; } server.listen(3002, () => { console.log(\"API server running on port 3002\"); })' > /app/index.js &&
+      node /app/index.js"
+    restart: unless-stopped
+    depends_on:
+      - dashboard
 
 volumes:
   postgres_data:

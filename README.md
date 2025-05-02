@@ -4,31 +4,35 @@ A comprehensive, enterprise-grade platform for running, managing, and monitoring
 
 ![MeowCoin Platform](https://placeholder.com/meowcoin-platform-2025.png)
 
-## Quick Start (Zero Configuration)
+## Quick Start with Web-Based Setup Wizard
 
-The platform is designed for a zero-configuration initial setup. Just run these commands and you're ready to go:
+The platform now features a user-friendly web-based setup wizard. Just run these commands and follow the on-screen instructions:
 
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/meowcoin-docker.git
 cd meowcoin-docker
 
-# Run the setup script (optional but recommended)
-./setup.sh
+# Start the platform (Linux/macOS)
+./start.sh
 
-# Start the platform in simplified mode
-docker-compose up -d
+# Start the platform (Windows PowerShell)
+.\start.ps1
 
-# Access the dashboard
+# Access the setup wizard in your browser
 open http://localhost:3000
 ```
 
 That's it! The platform will automatically:
-1. Create default configuration with secure values
-2. Start essential services in simplified mode
-3. Provide a welcome page with next steps
+1. Start essential services
+2. Open a web-based setup wizard
+3. Guide you through the configuration process
 
-> **Note:** If you encounter any issues with missing directories, run the `./fix-directories.sh` script to create the required directory structure.
+The setup wizard allows you to configure:
+- Database options (SQLite, Built-in PostgreSQL, or Custom)
+- MeowCoin node settings
+- Security settings
+- Platform features
 
 ## Accessing Services
 
@@ -40,18 +44,16 @@ After starting the platform, you can access these services:
 - **PostgreSQL**: localhost:5432 (postgres/postgres)
 - **Redis**: localhost:6379
 
-## Enabling Full Functionality
+## Customizing Your Installation
 
-To enable all features of the platform:
+After completing the setup wizard, you can further customize your installation:
+
+1. **Modify Configuration**: Edit the `.env` file to change any settings
+2. **Add Custom Plugins**: Place custom plugins in the `plugins` directory
+3. **Extend Functionality**: Modify the docker-compose.yml file to add new services
 
 ```bash
-# Run the setup script
-./setup.sh
-
-# Switch to the full configuration
-mv docker-compose.full.yml docker-compose.yml
-
-# Restart the platform
+# Restart the platform after making changes
 docker-compose down
 docker-compose up -d
 ```
