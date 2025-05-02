@@ -57,6 +57,51 @@ mkdir -p infrastructure/grafana/provisioning/dashboards/json
 # Dashboard
 mkdir -p packages/dashboard/public
 
+# Create welcome.txt if it doesn't exist
+if [ ! -f welcome.txt ]; then
+    echo -e "${YELLOW}Creating welcome.txt file...${NC}"
+    cat > welcome.txt << EOL
+======================================================
+       WELCOME TO MEOWCOIN PLATFORM (2025 Edition)
+======================================================
+
+Your MeowCoin Platform is now running! Here's how to access the different components:
+
+DASHBOARDS:
+- Main Dashboard: http://localhost:3000
+  Default credentials: admin / admin
+
+- Grafana Monitoring: http://localhost:3001
+  Default credentials: admin / admin
+
+- Prometheus: http://localhost:9090
+
+- RabbitMQ Management: http://localhost:15672
+  Default credentials: guest / guest
+
+API ENDPOINTS:
+- API Gateway: http://localhost:8080
+- Blockchain API: http://localhost:3002
+- Authentication API: http://localhost:3001
+
+IMPORTANT SECURITY NOTICE:
+- Default credentials have been set for demonstration purposes
+- For production use, please update the passwords in the .env file
+- Particularly important to change: JWT_SECRET, MEOWCOIN_RPC_PASSWORD, 
+  POSTGRES_PASSWORD, GRAFANA_ADMIN_PASSWORD, and RABBITMQ_PASSWORD
+
+NEXT STEPS:
+1. Review and update the .env file with your preferred settings
+2. Restart the platform with: docker-compose down && docker-compose up -d
+3. Check the logs with: docker-compose logs -f
+
+For more information, see the documentation in the /docs directory.
+
+======================================================
+EOL
+    echo -e "${GREEN}Created welcome.txt file.${NC}"
+fi
+
 echo -e "${GREEN}Directory structure fixed successfully!${NC}"
 echo -e "${YELLOW}You can now run 'docker-compose up -d' to start the platform.${NC}"
 echo -e "${BLUE}=======================================${NC}"
