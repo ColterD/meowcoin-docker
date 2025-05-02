@@ -6,37 +6,86 @@ Write-Host "   MeowCoin Platform Startup Script   " -ForegroundColor Blue
 Write-Host "=======================================" -ForegroundColor Blue
 
 # Create required directories
-New-Item -ItemType Directory -Force -Path "packages/dashboard/public" | Out-Null
-New-Item -ItemType Directory -Force -Path "infrastructure/grafana/provisioning/dashboards/json" | Out-Null
-New-Item -ItemType Directory -Force -Path "infrastructure/postgres/init" | Out-Null
-
-# Check if postgres init script exists, if not create it
-if (-not (Test-Path "infrastructure/postgres/init/create-multiple-databases.sh")) {
-    Write-Host "Creating PostgreSQL initialization script..." -ForegroundColor Yellow
-    $script = @"
-#!/bin/bash
-
-set -e
-set -u
-
-function create_user_and_database() {
-    local database=`$1
-    echo "Creating user and database '`$database'"
-    psql -v ON_ERROR_STOP=1 --username "`$POSTGRES_USER" <<-EOSQL
-        CREATE DATABASE `$database;
-        GRANT ALL PRIVILEGES ON DATABASE `$database TO `$POSTGRES_USER;
-EOSQL
+if (-not (Test-Path -Path "packages/dashboard/public")) {
+    New-Item -Path "packages/dashboard/public" -ItemType Directory -Force | Out-Null
+    Write-Host "Created dashboard public directory" -ForegroundColor Green
 }
 
-if [ -n "`$POSTGRES_MULTIPLE_DATABASES" ]; then
-    echo "Multiple database creation requested: `$POSTGRES_MULTIPLE_DATABASES"
-    for db in `$(echo `$POSTGRES_MULTIPLE_DATABASES | tr ',' ' '); do
-        create_user_and_database `$db
-    done
-    echo "Multiple databases created"
-fi
-"@
-    $script | Out-File -FilePath "infrastructure/postgres/init/create-multiple-databases.sh" -Encoding utf8
+if (-not (Test-Path -Path "config")) {
+    New-Item -Path "config" -ItemType Directory -Force | Out-Null
+    Write-Host "Created config directory" -ForegroundColor Green
+}
+
+# Create .env file if it doesn't exist
+if (-not (Test-Path -Path ".env")) {
+    Write-Host "Creating .env file with default values..." -ForegroundColor Yellow
+    @"
+# Database Configuration
+DATABASE_TYPE=sqlite
+DATABASE_HOST=postgres
+DATABASE_PORT=5432
+DATABASE_NAME=meowcoin
+DATABASE_USER=postgres
+DATABASE_PASSWORD=postgres
+
+# Redis Configuration
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# MeowCoin Node
+MEOWCOIN_RPC_USER=meowcoinuser
+MEOWCOIN_RPC_PASSWORD=meowcoinpassword
+
+# Monitoring
+GRAFANA_ADMIN_PASSWORD=admin
+"@ | Out-File -FilePath ".env" -Encoding utf8
+    Write-Host "Created .env file with default values." -ForegroundColor Green
+}
+
+# Create initial config.json if it doesn't exist
+if (-not (Test-Path -Path "config/config.json")) {
+    Write-Host "Creating initial configuration..." -ForegroundColor Yellow
+    @"
+{
+  "setupCompleted": false,
+  "database": {
+    "type": "sqlite",
+    "path": "/config/meowcoin.db"
+  },
+  "node": {
+    "name": "MeowNode-1",
+    "rpcEnabled": true,
+    "rpcPort": 9332,
+    "p2pPort": 9333,
+    "dataDir": "/data/meowcoin",
+    "maxConnections": 125
+  }
+}
+"@ | Out-File -FilePath "config/config.json" -Encoding utf8
+    Write-Host "Created initial configuration." -ForegroundColor Green
+}
+
+# Check if Docker is installed
+try {
+    docker --version | Out-Null
+} catch {
+    Write-Host "Docker is not installed. Please install Docker Desktop before running this script." -ForegroundColor Red
+    exit 1
+}
+
+# Check if Docker Compose is installed
+try {
+    docker-compose --version | Out-Null
+    $DOCKER_COMPOSE = "docker-compose"
+} catch {
+    try {
+        docker compose version | Out-Null
+        $DOCKER_COMPOSE = "docker compose"
+    } catch {
+        Write-Host "Docker Compose is not installed. Please install Docker Compose before running this script." -ForegroundColor Red
+        exit 1
+    }
 }
 
 # Start the platform
