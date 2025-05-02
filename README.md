@@ -13,6 +13,9 @@ The platform is designed for a zero-configuration initial setup. Just run these 
 git clone https://github.com/yourusername/meowcoin-docker.git
 cd meowcoin-docker
 
+# Run the setup script (optional but recommended)
+./setup.sh
+
 # Start the platform in simplified mode
 docker-compose up -d
 
@@ -24,6 +27,8 @@ That's it! The platform will automatically:
 1. Create default configuration with secure values
 2. Start essential services in simplified mode
 3. Provide a welcome page with next steps
+
+> **Note:** If you encounter any issues with missing directories, run the `./fix-directories.sh` script to create the required directory structure.
 
 ## Accessing Services
 
