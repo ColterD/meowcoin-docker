@@ -89,7 +89,6 @@ After starting the platform, you can access these services:
 
 - **Dashboard**: http://localhost:3000
 - **Grafana Monitoring**: http://localhost:3001 (admin/admin)
-- **RabbitMQ Management**: http://localhost:15672 (guest/guest)
 - **PostgreSQL**: localhost:5432 (postgres/postgres)
 - **Redis**: localhost:6379
 
@@ -174,7 +173,6 @@ Important configuration options:
 - `DATABASE_TYPE`: Type of database to use (sqlite, postgresql)
 - `POSTGRES_PASSWORD`: Password for the PostgreSQL database (if using PostgreSQL)
 - `GRAFANA_ADMIN_PASSWORD`: Password for the Grafana admin user
-- `RABBITMQ_USER` and `RABBITMQ_PASSWORD`: Credentials for RabbitMQ
 - `ENABLE_MFA`: Enable Multi-Factor Authentication
 - `ENABLE_ANALYTICS`: Enable the analytics engine
 
