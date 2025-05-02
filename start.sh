@@ -1,21 +1,118 @@
 #!/bin/bash
 
 # MeowCoin Platform Startup Script
-# This script starts the MeowCoin Platform with automatic setup
+# This script starts the MeowCoin Platform with automatic setup and self-update capability
+
+# Repository information
+REPO_OWNER="ColterD"
+REPO_NAME="meowcoin-docker"
+BRANCH="main"
+
+# Script version
+SCRIPT_VERSION="1.0.0"
 
 # Color codes for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}=======================================${NC}"
 echo -e "${BLUE}   MeowCoin Platform Startup Script   ${NC}"
+echo -e "${BLUE}   Version: ${SCRIPT_VERSION}         ${NC}"
 echo -e "${BLUE}=======================================${NC}"
 
-# Create required directories
-mkdir -p packages/dashboard/public
-mkdir -p config
+# Function to check for script updates
+check_for_updates() {
+    echo -e "${YELLOW}Checking for script updates...${NC}"
+    
+    # Create a temporary directory
+    TMP_DIR=$(mktemp -d)
+    
+    # Download the latest version of the script
+    if curl -s -o "${TMP_DIR}/start.sh" "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/start.sh"; then
+        # Compare the versions
+        LATEST_VERSION=$(grep "SCRIPT_VERSION=" "${TMP_DIR}/start.sh" | head -n 1 | cut -d'"' -f2)
+        
+        if [ -n "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "$SCRIPT_VERSION" ]; then
+            echo -e "${YELLOW}A new version of the script is available: ${LATEST_VERSION}${NC}"
+            echo -e "${YELLOW}Updating script...${NC}"
+            
+            # Make the new script executable
+            chmod +x "${TMP_DIR}/start.sh"
+            
+            # Replace the current script with the new one
+            cp "${TMP_DIR}/start.sh" "$0"
+            
+            echo -e "${GREEN}Script updated successfully!${NC}"
+            echo -e "${YELLOW}Restarting script...${NC}"
+            
+            # Clean up
+            rm -rf "${TMP_DIR}"
+            
+            # Restart the script
+            exec "$0" "$@"
+            exit 0
+        else
+            echo -e "${GREEN}Script is up to date.${NC}"
+        fi
+    else
+        echo -e "${YELLOW}Could not check for updates. Continuing with current version.${NC}"
+    fi
+    
+    # Clean up
+    rm -rf "${TMP_DIR}"
+}
+
+# Function to download required files
+download_required_files() {
+    echo -e "${YELLOW}Downloading required files...${NC}"
+    
+    # Create required directories
+    mkdir -p packages/dashboard/public
+    mkdir -p config
+    
+    # Download the setup.html file
+    if [ ! -f packages/dashboard/public/setup.html ]; then
+        echo -e "${YELLOW}Downloading setup.html...${NC}"
+        mkdir -p packages/dashboard/public
+        if curl -s -o "packages/dashboard/public/setup.html" "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/packages/dashboard/public/setup.html"; then
+            echo -e "${GREEN}Downloaded setup.html successfully.${NC}"
+        else
+            echo -e "${RED}Failed to download setup.html. Please check your internet connection.${NC}"
+            exit 1
+        fi
+    fi
+    
+    # Download the index.html file
+    if [ ! -f packages/dashboard/public/index.html ]; then
+        echo -e "${YELLOW}Downloading index.html...${NC}"
+        if curl -s -o "packages/dashboard/public/index.html" "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/packages/dashboard/public/index.html"; then
+            echo -e "${GREEN}Downloaded index.html successfully.${NC}"
+        else
+            echo -e "${RED}Failed to download index.html. Please check your internet connection.${NC}"
+            exit 1
+        fi
+    fi
+    
+    # Download the docker-compose.yml file
+    if [ ! -f docker-compose.yml ]; then
+        echo -e "${YELLOW}Downloading docker-compose.yml...${NC}"
+        if curl -s -o "docker-compose.yml" "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/docker-compose.yml"; then
+            echo -e "${GREEN}Downloaded docker-compose.yml successfully.${NC}"
+        else
+            echo -e "${RED}Failed to download docker-compose.yml. Please check your internet connection.${NC}"
+            exit 1
+        fi
+    fi
+}
+
+# Check for updates
+check_for_updates
+
+# Download required files
+download_required_files
 
 # Create .env file if it doesn't exist
 if [ ! -f .env ]; then

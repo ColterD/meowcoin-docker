@@ -6,27 +6,37 @@ A comprehensive, enterprise-grade platform for running, managing, and monitoring
 
 ## Quick Start with Web-Based Setup Wizard
 
-The platform now features a user-friendly web-based setup wizard. Just run these commands and follow the on-screen instructions:
+The platform now features a user-friendly web-based setup wizard with self-updating scripts. You don't even need to clone the entire repository!
+
+### For Linux/macOS:
 
 ```bash
-# Clone the repository
-git clone https://github.com/ColterD/meowcoin-docker.git
-cd meowcoin-docker
+# Download the startup script
+curl -o start.sh https://raw.githubusercontent.com/ColterD/meowcoin-docker/main/start.sh
+chmod +x start.sh
 
-# Start the platform (Linux/macOS)
+# Run the script
 ./start.sh
+```
 
-# OR for Windows PowerShell
+### For Windows:
+
+```powershell
+# Download the startup script
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ColterD/meowcoin-docker/main/start.ps1" -OutFile "start.ps1"
+
+# Run the script
 .\start.ps1
-
-# The setup wizard will automatically open in your browser
-# If it doesn't, navigate to: http://localhost:3000
 ```
 
 That's it! The platform will automatically:
-1. Start essential services
-2. Open a web-based setup wizard
-3. Guide you through the configuration process
+1. Check for script updates
+2. Download required files
+3. Start essential services
+4. Open a web-based setup wizard
+5. Guide you through the configuration process
+
+The scripts will automatically update themselves when new versions are available, ensuring you always have the latest features and bug fixes.
 
 ### Setup Wizard Features
 
