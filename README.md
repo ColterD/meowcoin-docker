@@ -20,6 +20,22 @@ curl -sSL https://raw.githubusercontent.com/ColterD/meowcoin-docker/main/meowcoi
 iwr -useb https://raw.githubusercontent.com/ColterD/meowcoin-docker/main/meowcoin-platform-installer.ps1 | iex
 ```
 
+> **Note:** If you encounter a 404 error when trying to download the installer scripts, the repository might be private or the files might not be accessible directly. In that case, please clone the repository first and then run the installer scripts locally:
+>
+> ```bash
+> # For Linux/macOS
+> git clone https://github.com/ColterD/meowcoin-docker.git
+> cd meowcoin-docker
+> ./meowcoin-platform-installer.sh
+> ```
+>
+> ```powershell
+> # For Windows
+> git clone https://github.com/ColterD/meowcoin-docker.git
+> cd meowcoin-docker
+> .\meowcoin-platform-installer.ps1
+> ```
+
 ## Alternative: Manual Installation
 
 If you prefer to download the startup script manually:
