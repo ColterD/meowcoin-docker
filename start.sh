@@ -26,6 +26,13 @@ mkdir -p packages/api/services/notifications
 mkdir -p infrastructure/grafana/provisioning/dashboards/json
 mkdir -p packages/dashboard/public
 
+# Check if welcome.txt exists, if not create it
+if [ ! -f welcome.txt ]; then
+    echo -e "${YELLOW}Creating welcome.txt file...${NC}"
+    # Run the setup script to create welcome.txt
+    ./setup.sh
+fi
+
 # Start the platform
 echo -e "${YELLOW}Starting MeowCoin Platform...${NC}"
 docker-compose down
