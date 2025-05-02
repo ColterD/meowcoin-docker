@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # MeowCoin Platform Installer Script
-# This script downloads and starts the MeowCoin Platform
+# This script sets up and starts the MeowCoin Platform
 # Version: 1.0.0
 
 # Color codes for output
@@ -11,9 +11,7 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Repository information
-REPO_OWNER="ColterD"
-REPO_NAME="meowcoin-docker"
+# Script version
 SCRIPT_VERSION="1.0.0"
 
 echo -e "${BLUE}=======================================${NC}"
@@ -21,10 +19,23 @@ echo -e "${BLUE}   MeowCoin Platform Installer        ${NC}"
 echo -e "${BLUE}   Version: ${SCRIPT_VERSION}         ${NC}"
 echo -e "${BLUE}=======================================${NC}"
 
-# Check if curl is installed
-if ! command -v curl &> /dev/null; then
-    echo -e "${RED}Error: curl is not installed. Please install curl before running this script.${NC}"
+# Check if Docker is installed
+if ! command -v docker &> /dev/null; then
+    echo -e "${RED}Error: Docker is not installed. Please install Docker before running this script.${NC}"
     exit 1
+fi
+
+# Check if Docker Compose is installed
+if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+    echo -e "${RED}Error: Docker Compose is not installed. Please install Docker Compose before running this script.${NC}"
+    exit 1
+fi
+
+# Determine Docker Compose command
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+else
+    DOCKER_COMPOSE="docker compose"
 fi
 
 # Create installation directory
@@ -32,39 +43,44 @@ INSTALL_DIR="meowcoin-platform"
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
-echo -e "${YELLOW}Downloading MeowCoin Platform...${NC}"
+echo -e "${YELLOW}Setting up MeowCoin Platform...${NC}"
 
-# Download required files
-echo -e "${YELLOW}Downloading required files...${NC}"
+# Clone the repository
+echo -e "${YELLOW}Cloning MeowCoin Platform repository...${NC}"
+if [ -d ".git" ]; then
+    git pull
+else
+    git clone https://github.com/ColterD/meowcoin-docker.git .
+fi
 
-# Download start.sh script
-echo -e "${YELLOW}Downloading start script...${NC}"
-curl -s "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/start.sh" -o "start.sh"
-chmod +x "start.sh"
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Failed to clone repository. Please check your internet connection.${NC}"
+    exit 1
+fi
 
-# Download docker-compose.yml
-echo -e "${YELLOW}Downloading docker-compose.yml...${NC}"
-curl -s "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/docker-compose.yml" -o "docker-compose.yml"
+echo -e "${GREEN}Repository cloned successfully.${NC}"
 
-# Create config directory
-mkdir -p config
-
-# Create packages/dashboard/public directory
-mkdir -p packages/dashboard/public
-
-# Download setup.html
-echo -e "${YELLOW}Downloading setup.html...${NC}"
-curl -s "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/packages/dashboard/public/setup.html" -o "packages/dashboard/public/setup.html"
-
-# Download index.html
-echo -e "${YELLOW}Downloading index.html...${NC}"
-curl -s "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/packages/dashboard/public/index.html" -o "packages/dashboard/public/index.html"
-
-echo -e "${GREEN}MeowCoin Platform downloaded successfully!${NC}"
+echo -e "${GREEN}MeowCoin Platform setup completed!${NC}"
 echo -e "${YELLOW}Starting MeowCoin Platform...${NC}"
 
-# Run the start script
-./start.sh
+# Start the platform
+$DOCKER_COMPOSE down
+$DOCKER_COMPOSE up -d
 
-echo -e "${GREEN}Installation complete!${NC}"
-echo -e "${YELLOW}You can start the platform again by running ./start.sh in the ${INSTALL_DIR} directory.${NC}"
+echo -e "${GREEN}MeowCoin Platform started successfully!${NC}"
+echo -e "${YELLOW}Access the dashboard at: http://localhost:3000${NC}"
+echo -e "${BLUE}=======================================${NC}"
+
+# Display welcome message
+cat << "EOF"
+  __  __                 _____      _       _____  _       _    __                     
+ |  \/  |               / ____|    (_)     |  __ \| |     | |  / _|                    
+ | \  / | ___  _____  _| |     ___  _ _ __ | |__) | | __ _| |_| |_ ___  _ __ _ __ ___  
+ | |\/| |/ _ \/ _ \ \/ / |    / _ \| | '_ \|  ___/| |/ _` | __|  _/ _ \| '__| '_ ` _ \ 
+ | |  | |  __/ (_) >  <| |___| (_) | | | | | |    | | (_| | |_| || (_) | |  | | | | | |
+ |_|  |_|\___|\___/_/\_\\_____\___/|_|_| |_|_|    |_|\__,_|\__|_| \___/|_|  |_| |_| |_|
+                                                                                       
+EOF
+
+echo -e "${GREEN}Thank you for using MeowCoin Platform!${NC}"
+echo -e "${YELLOW}Open your browser and navigate to http://localhost:3000 to complete setup.${NC}"
