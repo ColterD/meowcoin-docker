@@ -1,13 +1,12 @@
 # MeowCoin Platform Startup Script for Windows
-# This script starts the MeowCoin Platform with automatic setup and self-update capability
+# This script starts the MeowCoin Platform with automatic setup
+# Version: 1.0.0
 
 # Repository information
 $RepoOwner = "ColterD"
 $RepoName = "meowcoin-docker"
-$Branch = "main"
-
-# Script version
 $ScriptVersion = "1.0.0"
+$ScriptName = "start.ps1"
 
 Write-Host "=======================================" -ForegroundColor Blue
 Write-Host "   MeowCoin Platform Startup Script   " -ForegroundColor Blue
@@ -18,96 +17,101 @@ Write-Host "=======================================" -ForegroundColor Blue
 function Check-ForUpdates {
     Write-Host "Checking for script updates..." -ForegroundColor Yellow
     
-    # Create a temporary file
-    $TempFile = [System.IO.Path]::GetTempFileName()
-    
     try {
-        # Download the latest version of the script
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$RepoOwner/$RepoName/$Branch/start.ps1" -OutFile $TempFile -ErrorAction Stop
+        # Get the latest version of the script from GitHub
+        $LatestScript = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/$ScriptName" -UseBasicParsing
         
-        # Get the version from the downloaded script
-        $LatestVersion = Select-String -Path $TempFile -Pattern 'ScriptVersion\s*=\s*"([^"]+)"' | ForEach-Object { $_.Matches.Groups[1].Value }
+        if ($LatestScript.StatusCode -ne 200) {
+            Write-Host "Failed to check for updates. Continuing with current version." -ForegroundColor Yellow
+            return
+        }
         
-        if ($LatestVersion -and $LatestVersion -ne $ScriptVersion) {
-            Write-Host "A new version of the script is available: $LatestVersion" -ForegroundColor Yellow
+        # Extract version from the latest script
+        $LatestVersionMatch = [regex]::Match($LatestScript.Content, '# Version: ([\d\.]+)')
+        
+        if (-not $LatestVersionMatch.Success) {
+            Write-Host "Could not determine latest version. Continuing with current version." -ForegroundColor Yellow
+            return
+        }
+        
+        $LatestVersion = $LatestVersionMatch.Groups[1].Value
+        
+        # Compare versions (simple string comparison for now)
+        if ($LatestVersion -ne $ScriptVersion) {
+            Write-Host "New version available: $LatestVersion" -ForegroundColor Green
             Write-Host "Updating script..." -ForegroundColor Yellow
             
-            # Replace the current script with the new one
-            Copy-Item -Path $TempFile -Destination $PSCommandPath -Force
+            # Create a backup of the current script
+            Copy-Item -Path $PSCommandPath -Destination "$PSCommandPath.bak" -Force
+            
+            # Update the script
+            Set-Content -Path $PSCommandPath -Value $LatestScript.Content
             
             Write-Host "Script updated successfully!" -ForegroundColor Green
-            Write-Host "Restarting script..." -ForegroundColor Yellow
+            Write-Host "Restarting script with new version..." -ForegroundColor Yellow
             
-            # Restart the script
+            # Execute the updated script
             & $PSCommandPath
             exit
+        } else {
+            Write-Host "You are using the latest version." -ForegroundColor Green
         }
-        else {
-            Write-Host "Script is up to date." -ForegroundColor Green
-        }
-    }
-    catch {
-        Write-Host "Could not check for updates. Continuing with current version." -ForegroundColor Yellow
-    }
-    finally {
-        # Clean up
-        if (Test-Path $TempFile) {
-            Remove-Item -Path $TempFile -Force
-        }
+    } catch {
+        Write-Host "Error checking for updates: $_" -ForegroundColor Yellow
+        Write-Host "Continuing with current version." -ForegroundColor Yellow
     }
 }
 
 # Function to download required files
 function Download-RequiredFiles {
-    Write-Host "Downloading required files..." -ForegroundColor Yellow
+    Write-Host "Checking for required files..." -ForegroundColor Yellow
     
     # Create required directories
-    if (-not (Test-Path -Path "packages/dashboard/public")) {
-        New-Item -Path "packages/dashboard/public" -ItemType Directory -Force | Out-Null
-        Write-Host "Created dashboard public directory" -ForegroundColor Green
-    }
+    $Directories = @(
+        "packages/dashboard/public",
+        "infrastructure/grafana/provisioning/dashboards/json",
+        "infrastructure/postgres/init",
+        "config"
+    )
     
-    if (-not (Test-Path -Path "config")) {
-        New-Item -Path "config" -ItemType Directory -Force | Out-Null
-        Write-Host "Created config directory" -ForegroundColor Green
-    }
-    
-    # Download the setup.html file
-    if (-not (Test-Path -Path "packages/dashboard/public/setup.html")) {
-        Write-Host "Downloading setup.html..." -ForegroundColor Yellow
-        try {
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$RepoOwner/$RepoName/$Branch/packages/dashboard/public/setup.html" -OutFile "packages/dashboard/public/setup.html" -ErrorAction Stop
-            Write-Host "Downloaded setup.html successfully." -ForegroundColor Green
-        }
-        catch {
-            Write-Host "Failed to download setup.html. Please check your internet connection." -ForegroundColor Red
-            exit 1
+    foreach ($Dir in $Directories) {
+        if (-not (Test-Path -Path $Dir)) {
+            New-Item -Path $Dir -ItemType Directory -Force | Out-Null
+            Write-Host "Created directory: $Dir" -ForegroundColor Green
         }
     }
     
-    # Download the index.html file
-    if (-not (Test-Path -Path "packages/dashboard/public/index.html")) {
-        Write-Host "Downloading index.html..." -ForegroundColor Yellow
-        try {
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$RepoOwner/$RepoName/$Branch/packages/dashboard/public/index.html" -OutFile "packages/dashboard/public/index.html" -ErrorAction Stop
-            Write-Host "Downloaded index.html successfully." -ForegroundColor Green
-        }
-        catch {
-            Write-Host "Failed to download index.html. Please check your internet connection." -ForegroundColor Red
-            exit 1
-        }
-    }
+    # List of essential files to download if they don't exist
+    $EssentialFiles = @(
+        "docker-compose.yml",
+        "packages/dashboard/public/index.html",
+        "packages/dashboard/public/setup-wizard.html",
+        "infrastructure/postgres/init/create-multiple-databases.sh"
+    )
     
-    # Download the docker-compose.yml file
-    if (-not (Test-Path -Path "docker-compose.yml")) {
-        Write-Host "Downloading docker-compose.yml..." -ForegroundColor Yellow
-        try {
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$RepoOwner/$RepoName/$Branch/docker-compose.yml" -OutFile "docker-compose.yml" -ErrorAction Stop
-            Write-Host "Downloaded docker-compose.yml successfully." -ForegroundColor Green
-        }
-        catch {
-            Write-Host "Failed to download docker-compose.yml. Please check your internet connection." -ForegroundColor Red
-            exit 1
+    # Download essential files
+    foreach ($File in $EssentialFiles) {
+        if (-not (Test-Path -Path $File)) {
+            Write-Host "Downloading $File..." -ForegroundColor Yellow
+            
+            try {
+                # Create directory if it doesn't exist
+                $Directory = Split-Path -Path $File -Parent
+                if (-not (Test-Path -Path $Directory)) {
+                    New-Item -Path $Directory -ItemType Directory -Force | Out-Null
+                }
+                
+                # Download file
+                Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/$File" -OutFile $File -UseBasicParsing
+                Write-Host "Downloaded $File successfully." -ForegroundColor Green
+                
+                # Make scripts executable on Unix systems
+                if ($File -like "*.sh" -and $IsLinux) {
+                    chmod +x $File
+                }
+            } catch {
+                Write-Host "Failed to download $File: $_" -ForegroundColor Red
+            }
         }
     }
 }

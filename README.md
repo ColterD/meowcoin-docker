@@ -4,9 +4,25 @@ A comprehensive, enterprise-grade platform for running, managing, and monitoring
 
 ![MeowCoin Platform](https://placeholder.com/meowcoin-platform-2025.png)
 
-## Quick Start with Web-Based Setup Wizard
+## Quick Start with One-Line Installer
 
-The platform now features a user-friendly web-based setup wizard with self-updating scripts. You don't even need to clone the entire repository!
+The easiest way to get started is with our one-line installer:
+
+### For Linux/macOS:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/ColterD/meowcoin-docker/main/meowcoin-platform-installer.sh | bash
+```
+
+### For Windows PowerShell:
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/ColterD/meowcoin-docker/main/meowcoin-platform-installer.ps1 | iex
+```
+
+## Alternative: Manual Installation
+
+If you prefer to download the startup script manually:
 
 ### For Linux/macOS:
 
@@ -29,7 +45,9 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ColterD/meowcoin-docke
 .\start.ps1
 ```
 
-That's it! The platform will automatically:
+## What Happens Next
+
+The platform will automatically:
 1. Check for script updates
 2. Download required files
 3. Start essential services
