@@ -4,31 +4,37 @@ A comprehensive, enterprise-grade platform for running, managing, and monitoring
 
 ![MeowCoin Platform](https://placeholder.com/meowcoin-platform-2025.png)
 
-## Quick Start
+## Quick Start with One-Line Installer
 
-The easiest way to get started is to clone the repository and run the installer script:
+The easiest way to get started is with our one-line installer:
 
 ### For Linux/macOS:
 
 ```bash
-# Clone the repository
-git clone https://github.com/ColterD/meowcoin-docker.git
-cd meowcoin-docker
-
-# Run the installer script
-./meowcoin-platform-installer.sh
+curl -sSL https://raw.githubusercontent.com/ColterD/meowcoin-docker/main/meowcoin-platform-installer.sh | bash
 ```
 
 ### For Windows PowerShell:
 
 ```powershell
-# Clone the repository
-git clone https://github.com/ColterD/meowcoin-docker.git
-cd meowcoin-docker
-
-# Run the installer script
-.\meowcoin-platform-installer.ps1
+iwr -useb https://raw.githubusercontent.com/ColterD/meowcoin-docker/main/meowcoin-platform-installer.ps1 | iex
 ```
+
+> **Note:** If you encounter a 404 error when trying to download the installer scripts, you can clone the repository and run the installer scripts locally:
+>
+> ```bash
+> # For Linux/macOS
+> git clone https://github.com/ColterD/meowcoin-docker.git
+> cd meowcoin-docker
+> ./meowcoin-platform-installer.sh
+> ```
+>
+> ```powershell
+> # For Windows
+> git clone https://github.com/ColterD/meowcoin-docker.git
+> cd meowcoin-docker
+> .\meowcoin-platform-installer.ps1
+> ```
 
 ## Alternative: Manual Installation
 

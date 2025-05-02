@@ -34,10 +34,31 @@ cd "$INSTALL_DIR"
 
 echo -e "${YELLOW}Downloading MeowCoin Platform...${NC}"
 
+# Download required files
+echo -e "${YELLOW}Downloading required files...${NC}"
+
 # Download start.sh script
 echo -e "${YELLOW}Downloading start script...${NC}"
 curl -s "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/start.sh" -o "start.sh"
 chmod +x "start.sh"
+
+# Download docker-compose.yml
+echo -e "${YELLOW}Downloading docker-compose.yml...${NC}"
+curl -s "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/docker-compose.yml" -o "docker-compose.yml"
+
+# Create config directory
+mkdir -p config
+
+# Create packages/dashboard/public directory
+mkdir -p packages/dashboard/public
+
+# Download setup.html
+echo -e "${YELLOW}Downloading setup.html...${NC}"
+curl -s "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/packages/dashboard/public/setup.html" -o "packages/dashboard/public/setup.html"
+
+# Download index.html
+echo -e "${YELLOW}Downloading index.html...${NC}"
+curl -s "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/packages/dashboard/public/index.html" -o "packages/dashboard/public/index.html"
 
 echo -e "${GREEN}MeowCoin Platform downloaded successfully!${NC}"
 echo -e "${YELLOW}Starting MeowCoin Platform...${NC}"
