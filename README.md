@@ -4,60 +4,55 @@ A comprehensive, enterprise-grade platform for running, managing, and monitoring
 
 ![MeowCoin Platform](https://placeholder.com/meowcoin-platform-2025.png)
 
-## Quick Start with One-Line Installer
+## Quick Start
 
-The easiest way to get started is with our one-line installer:
+The easiest way to get started is to clone the repository and run the installer script:
 
 ### For Linux/macOS:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/ColterD/meowcoin-docker/main/meowcoin-platform-installer.sh | bash
+# Clone the repository
+git clone https://github.com/ColterD/meowcoin-docker.git
+cd meowcoin-docker
+
+# Run the installer script
+./meowcoin-platform-installer.sh
 ```
 
 ### For Windows PowerShell:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/ColterD/meowcoin-docker/main/meowcoin-platform-installer.ps1 | iex
-```
+# Clone the repository
+git clone https://github.com/ColterD/meowcoin-docker.git
+cd meowcoin-docker
 
-> **Note:** If you encounter a 404 error when trying to download the installer scripts, the repository might be private or the files might not be accessible directly. In that case, please clone the repository first and then run the installer scripts locally:
->
-> ```bash
-> # For Linux/macOS
-> git clone https://github.com/ColterD/meowcoin-docker.git
-> cd meowcoin-docker
-> ./meowcoin-platform-installer.sh
-> ```
->
-> ```powershell
-> # For Windows
-> git clone https://github.com/ColterD/meowcoin-docker.git
-> cd meowcoin-docker
-> .\meowcoin-platform-installer.ps1
-> ```
+# Run the installer script
+.\meowcoin-platform-installer.ps1
+```
 
 ## Alternative: Manual Installation
 
-If you prefer to download the startup script manually:
+If you prefer to run the startup script directly:
 
 ### For Linux/macOS:
 
 ```bash
-# Download the startup script
-curl -o start.sh https://raw.githubusercontent.com/ColterD/meowcoin-docker/main/start.sh
-chmod +x start.sh
+# Clone the repository
+git clone https://github.com/ColterD/meowcoin-docker.git
+cd meowcoin-docker
 
-# Run the script
+# Run the startup script directly
 ./start.sh
 ```
 
 ### For Windows:
 
 ```powershell
-# Download the startup script
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ColterD/meowcoin-docker/main/start.ps1" -OutFile "start.ps1"
+# Clone the repository
+git clone https://github.com/ColterD/meowcoin-docker.git
+cd meowcoin-docker
 
-# Run the script
+# Run the startup script directly
 .\start.ps1
 ```
 
