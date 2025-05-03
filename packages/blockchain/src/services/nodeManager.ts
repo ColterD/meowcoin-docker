@@ -1,16 +1,28 @@
 import { NodeInfo, NodeStatus, NodeType, NodeAction, AppError, ErrorCode } from '@meowcoin/shared';
-import { config } from '../config';
-import { logger } from '../utils/logger';
+import { getConfig } from '../config';
+import { getLogger } from '../utils/logger';
+import { setupRedis } from '../utils/redis';
+import { setupPrisma } from '../utils/prisma';
 import { MeowCoinRPC } from './meowcoinRPC';
-import { prisma } from '../utils/prisma';
-import { redis } from '../utils/redis';
 import { EventEmitter } from 'events';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
+import os from 'os';
 
 const execAsync = promisify(exec);
+
+// Dependency factory for config, logger, redis, prisma
+function getNodeManagerDeps() {
+  const config = getConfig();
+  const logger = getLogger(config);
+  const redis = setupRedis(config, logger);
+  const prisma = setupPrisma(logger);
+  return { config, logger, redis, prisma };
+}
+
+const { config, logger, redis, prisma } = getNodeManagerDeps();
 
 // Create event emitter for node events
 export const nodeEvents = new EventEmitter();
@@ -21,7 +33,7 @@ const rpcClient = new MeowCoinRPC({
   port: config.meowcoin.rpcPort,
   user: config.meowcoin.rpcUser,
   password: config.meowcoin.rpcPassword,
-});
+}, logger);
 
 // Initialize node manager
 export async function initializeNodeManager() {
@@ -249,12 +261,6 @@ export async function getNodeInfo(): Promise<NodeInfo> {
     // Get network info
     const networkInfo = await rpcClient.getNetworkInfo();
     
-    // Get memory info
-    const memInfo = await rpcClient.getMemoryInfo();
-    
-    // Get mining info
-    const miningInfo = await rpcClient.getMiningInfo();
-    
     // Get system resource usage
     const resourceUsage = await getSystemResourceUsage();
     
@@ -286,8 +292,8 @@ export async function getNodeInfo(): Promise<NodeInfo> {
         cpuUsage: resourceUsage.cpuUsage,
         memoryUsage: resourceUsage.memoryUsage,
         diskUsage: resourceUsage.diskUsage,
-        networkInbound: networkInfo.bytesrecv / 1024, // KB/s
-        networkOutbound: networkInfo.bytessent / 1024, // KB/s
+        networkInbound: 0, // Not available
+        networkOutbound: 0, // Not available
         connections: networkInfo.connections,
         lastUpdated: new Date().toISOString(),
       },
@@ -320,18 +326,35 @@ async function getSystemResourceUsage(): Promise<{
   diskUsage: number;
 }> {
   try {
-    // Get CPU usage
-    const { stdout: cpuOutput } = await execAsync("top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4}'");
-    const cpuUsage = parseFloat(cpuOutput);
-    
-    // Get memory usage
-    const { stdout: memOutput } = await execAsync("free -m | awk 'NR==2{printf \"%.2f\", $3*100/$2}'");
-    const memoryUsage = parseFloat(memOutput);
-    
-    // Get disk usage
-    const { stdout: diskOutput } = await execAsync(`df -h ${config.meowcoin.dataDir} | awk 'NR==2{print $5}' | sed 's/%//'`);
-    const diskUsage = parseFloat(diskOutput);
-    
+    // Use Node.js os module for CPU and memory stats
+    // CPU usage: average over 1 second
+    const cpus1 = os.cpus();
+    const idle1 = cpus1.reduce((acc, cpu) => acc + cpu.times.idle, 0);
+    const total1 = cpus1.reduce((acc, cpu) => acc + Object.values(cpu.times).reduce((a, b) => a + b, 0), 0);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const cpus2 = os.cpus();
+    const idle2 = cpus2.reduce((acc, cpu) => acc + cpu.times.idle, 0);
+    const total2 = cpus2.reduce((acc, cpu) => acc + Object.values(cpu.times).reduce((a, b) => a + b, 0), 0);
+    const idle = idle2 - idle1;
+    const total = total2 - total1;
+    const cpuUsage = total > 0 ? (100 - (100 * idle / total)) : 0;
+
+    // Memory usage
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    const memoryUsage = totalMem > 0 ? (usedMem * 100) / totalMem : 0;
+
+    // Disk usage: fallback to shell command (platform-specific)
+    let diskUsage = 0;
+    try {
+      const { stdout: diskOutput } = await execAsync(`df -h ${config.meowcoin.dataDir} | awk 'NR==2{print $5}' | sed 's/%//'`);
+      diskUsage = parseFloat(diskOutput);
+    } catch (diskErr) {
+      // TODO: Add Windows/Mac support for disk usage if needed
+      diskUsage = 0;
+    }
+
     return {
       cpuUsage: isNaN(cpuUsage) ? 0 : cpuUsage,
       memoryUsage: isNaN(memoryUsage) ? 0 : memoryUsage,

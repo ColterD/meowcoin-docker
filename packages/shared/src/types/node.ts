@@ -1,6 +1,7 @@
 /**
  * Node status types
  */
+// eslint-disable-next-line no-unused-vars
 export enum NodeStatus {
   RUNNING = 'running',
   STARTING = 'starting',
@@ -14,6 +15,7 @@ export enum NodeStatus {
 /**
  * Node action types
  */
+// eslint-disable-next-line no-unused-vars
 export enum NodeAction {
   START = 'start',
   STOP = 'stop',
@@ -27,6 +29,7 @@ export enum NodeAction {
 /**
  * Node type
  */
+// eslint-disable-next-line no-unused-vars
 export enum NodeType {
   FULL_NODE = 'full_node',
   MINING_NODE = 'mining_node',
@@ -51,7 +54,7 @@ export interface NodeResourceUsage {
 /**
  * Node configuration
  */
-export interface NodeConfig {
+export interface NodeConfig<TCustom = string> {
   id: string;
   name: string;
   type: NodeType;
@@ -74,7 +77,7 @@ export interface NodeConfig {
   pruneSize: number; // MB
   txIndex: boolean;
   addressIndex: boolean;
-  customParameters: Record<string, string>;
+  customParameters: Record<string, TCustom>;
 }
 
 /**
@@ -116,7 +119,7 @@ export interface NodeBackup {
 /**
  * Node alert
  */
-export interface NodeAlert {
+export interface NodeAlert<TData = unknown> {
   id: string;
   nodeId: string;
   type: 'error' | 'warning' | 'info';
@@ -125,5 +128,5 @@ export interface NodeAlert {
   acknowledged: boolean;
   acknowledgedBy?: string;
   acknowledgedAt?: string; // ISO date string
-  data?: any;
+  data?: TData;
 }

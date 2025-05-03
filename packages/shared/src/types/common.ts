@@ -1,18 +1,17 @@
 /**
  * Standard API response format
  */
+export interface ApiResponseMeta {
+  [key: string]: string | number | boolean | undefined;
+}
+
 export interface ApiResponse<T> {
   data: T;
   success: boolean;
   message?: string;
   code?: string;
   timestamp: string;
-  meta?: {
-    page?: number;
-    limit?: number;
-    total?: number;
-    [key: string]: any;
-  };
+  meta?: ApiResponseMeta;
 }
 
 /**
@@ -52,6 +51,8 @@ export interface HealthStatus {
 /**
  * Error codes
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line no-unused-vars
 export enum ErrorCode {
   UNAUTHORIZED = 'UNAUTHORIZED',
   FORBIDDEN = 'FORBIDDEN',
@@ -65,15 +66,18 @@ export enum ErrorCode {
   DATABASE_ERROR = 'DATABASE_ERROR',
 }
 
+// Structured error details for AppError
+export type AppErrorDetails<T = unknown> = T;
+
 /**
  * Custom application error
  */
-export class AppError extends Error {
+export class AppError<T = unknown> extends Error {
   code: ErrorCode;
   statusCode: number;
-  details?: any;
+  details?: AppErrorDetails<T>;
 
-  constructor(code: ErrorCode, message: string, statusCode: number = 500, details?: any) {
+  constructor(code: ErrorCode, message: string, statusCode: number = 500, details?: AppErrorDetails<T>) {
     super(message);
     this.name = 'AppError';
     this.code = code;

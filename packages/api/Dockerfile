@@ -1,43 +1,47 @@
+# --- Builder stage ---
 FROM node:20-alpine AS builder
 
-WORKDIR /app
+WORKDIR /repo
 
-# Copy package files
+# Copy monorepo package files
 COPY package.json ./
-COPY tsconfig.json ./
+COPY package-lock.json ./
+COPY packages ./packages
 
-# Copy source code
-COPY src/ ./src/
-
-# Install dependencies
+# Install all dependencies (including workspaces)
 RUN npm install
 
-# Build the application
-RUN npm run build
+# Build shared and api packages
+RUN npm run build --workspace packages/shared && npm run build --workspace packages/api
 
-# Production stage
+# --- Production stage ---
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
+# Copy only API package.json for production install
+COPY packages/api/package.json ./
 COPY package.json ./
+COPY package-lock.json ./
 
-# Install production dependencies only
-RUN npm install --production
+# Install production dependencies for API only
+RUN npm install --omit=dev
 
-# Copy built application from builder stage
-COPY --from=builder /app/dist ./dist
+# Copy root node_modules to ensure hoisted dependencies are available
+COPY --from=builder /repo/node_modules ./node_modules
 
-# Set environment variables
+# Copy built API dist from builder (flattened for runtime)
+COPY --from=builder /repo/packages/api/dist/packages/api/src ./dist
+# Copy full shared package for monorepo runtime
+COPY --from=builder /repo/packages/shared ./node_modules/@meowcoin/shared
+# Copy full blockchain package for monorepo runtime
+COPY --from=builder /repo/packages/blockchain ./node_modules/@meowcoin/blockchain
+
+# Copy config if needed (optional, handled by compose)
+# COPY --from=builder /repo/config ./config
+
 ENV NODE_ENV=production
-
-# Expose port
 EXPOSE 8080
-
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
-
-# Start the application
 CMD ["node", "dist/index.js"]

@@ -16,7 +16,8 @@ services:
 
   # MeowCoin Node
   meowcoin-node:
-    image: alpine:latest
+    build:
+      context: ./packages/blockchain/node
     volumes:
       - meowcoin_data:/root/.meowcoin
       - meowcoin_config:/etc/meowcoin
@@ -25,27 +26,20 @@ services:
       - "9333:9333" # P2P port
     environment:
       - MEOWCOIN_RPC_USER=${MEOWCOIN_RPC_USER:-meowcoinuser}
-      - MEOWCOIN_RPC_PASSWORD=${MEOWCOIN_RPC_PASSWORD:-meowcoinpassword}
+      - MEOWCOIN_RPC_PASSWORD_FILE=/run/secrets/meowcoin_rpc_password
     restart: unless-stopped
     networks:
       - meowcoin-network
-    command: >
-      /bin/sh -c "echo 'MeowCoin Node started.' && 
-      mkdir -p /root/.meowcoin && 
-      echo 'rpcuser=${MEOWCOIN_RPC_USER:-meowcoinuser}' > /root/.meowcoin/meowcoin.conf && 
-      echo 'rpcpassword=${MEOWCOIN_RPC_PASSWORD:-meowcoinpassword}' >> /root/.meowcoin/meowcoin.conf && 
-      echo 'server=1' >> /root/.meowcoin/meowcoin.conf && 
-      echo 'listen=1' >> /root/.meowcoin/meowcoin.conf && 
-      echo 'rpcallowip=0.0.0.0/0' >> /root/.meowcoin/meowcoin.conf && 
-      tail -f /dev/null"
+    secrets:
+      - meowcoin_rpc_password
+    entrypoint: ["/entrypoint.sh"]
+    command: ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
 
   # API Service
   api:
-    image: node:18-alpine
-    volumes:
-      - ./packages/api:/app
-      - ./config:/config:ro
-    working_dir: /app
+    build:
+      context: .
+      dockerfile: packages/api/Dockerfile
     ports:
       - "8080:8080"
     environment:
@@ -53,7 +47,7 @@ services:
       - PORT=8080
       - CONFIG_PATH=/config/config.json
       - MEOWCOIN_RPC_USER=${MEOWCOIN_RPC_USER:-meowcoinuser}
-      - MEOWCOIN_RPC_PASSWORD=${MEOWCOIN_RPC_PASSWORD:-meowcoinpassword}
+      - MEOWCOIN_RPC_PASSWORD_FILE=/run/secrets/meowcoin_rpc_password
       - MEOWCOIN_RPC_HOST=meowcoin-node
       - MEOWCOIN_RPC_PORT=9332
       - DATABASE_TYPE=${DATABASE_TYPE:-sqlite}
@@ -61,29 +55,25 @@ services:
       - DATABASE_PORT=${DATABASE_PORT:-5432}
       - DATABASE_NAME=${DATABASE_NAME:-meowcoin}
       - DATABASE_USER=${DATABASE_USER:-postgres}
-      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
+      - DATABASE_PASSWORD_FILE=/run/secrets/db_password
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - JWT_SECRET_FILE=/run/secrets/jwt_secret
+      - API_KEY=${API_KEY:-A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6}
+      - DATABASE_URL=${DATABASE_URL:-file:/data/meowcoin.sqlite}
     restart: unless-stopped
     depends_on:
       - meowcoin-node
     networks:
       - meowcoin-network
-    command: >
-      sh -c "if [ ! -f /app/package.json ]; then 
-        echo 'API service placeholder' > /app/index.js && 
-        echo '{\"name\":\"meowcoin-api\",\"version\":\"1.0.0\",\"main\":\"index.js\"}' > /app/package.json; 
-      fi && 
-      if [ -f /app/package.json ] && [ ! -d /app/node_modules ]; then 
-        npm install; 
-      fi && 
-      if [ -f /app/index.js ]; then 
-        node index.js; 
-      else 
-        echo 'API service is ready but no index.js found. Using placeholder.' && 
-        node -e 'const http=require(\"http\");const server=http.createServer((req,res)=>{res.writeHead(200,{\"Content-Type\":\"application/json\"});res.end(JSON.stringify({status:\"ok\",message:\"API service is running\"}))});server.listen(8080,()=>console.log(\"API server running on port 8080\"));'; 
-      fi"
+    secrets:
+      - jwt_secret
+      - db_password
+    entrypoint: ["/bin/sh", "-c", "if [ -f /fetch-secrets.sh ]; then /fetch-secrets.sh db_password jwt_secret; fi && exec /entrypoint.sh"]
+    volumes:
+      - ./scripts/fetch-secrets.sh:/fetch-secrets.sh:ro
+      - /run/secrets
 
   # Database (conditional based on configuration)
   postgres:
@@ -91,7 +81,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_PASSWORD=${DATABASE_PASSWORD:-postgres}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
       - POSTGRES_USER=${DATABASE_USER:-postgres}
       - POSTGRES_DB=${DATABASE_NAME:-meowcoin}
     ports:
@@ -102,6 +92,8 @@ services:
     profiles:
       - database
       - full
+    secrets:
+      - db_password
 
   # Redis (conditional based on configuration)
   redis:
@@ -189,6 +181,7 @@ services:
           // Database settings
           env += \"# Database\\n\";
           if (config.database.type === \"sqlite\") {
+            env += \"# Database\\n\";
             env += \"DATABASE_TYPE=sqlite\\n\";
             env += \"DATABASE_PATH=/data/meowcoin.db\\n\\n\";
           } else if (config.database.type === \"builtin\") {
@@ -299,6 +292,35 @@ services:
         });
       ';"
 
+  # Lightweight Vault Service (optional, enable if selected in installer)
+  vault:
+    image: vaultwarden/server:latest
+    container_name: vault
+    ports:
+      - "8222:80"
+    volumes:
+      - vault_data:/data
+    environment:
+      - DOMAIN=http://localhost:8222
+      - ADMIN_TOKEN=${VAULT_ADMIN_TOKEN:-changeme}
+      - SIGNUPS_ALLOWED=false
+      - WEB_VAULT_ENABLED=true
+      # SMTP settings (optional, configure as needed)
+      - SMTP_HOST=smtp.example.com
+      - SMTP_FROM=admin@example.com
+      - SMTP_FROM_NAME=Vaultwarden
+      - SMTP_SECURITY=off
+      - SMTP_PORT=587
+      - SMTP_USERNAME=admin@example.com
+      - SMTP_PASSWORD=changeme
+      - SMTP_AUTH_MECHANISM="Plain"
+    restart: unless-stopped
+    networks:
+      - meowcoin-network
+    profiles:
+      - vault
+    # This service is enabled if the user selects lightweight vault in the installer
+
 networks:
   meowcoin-network:
     driver: bridge
@@ -310,3 +332,12 @@ volumes:
   prometheus_data:
   meowcoin_data:
   meowcoin_config:
+  vault_data:
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  meowcoin_rpc_password:
+    file: ./secrets/db_password.txt

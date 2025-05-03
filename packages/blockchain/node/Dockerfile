@@ -13,6 +13,7 @@ ENV PATH=/usr/local/bin:$PATH
 RUN apt-get update && apt-get install -y \
     wget \
     curl \
+    jq \
     gnupg \
     ca-certificates \
     apt-transport-https \
@@ -25,10 +26,12 @@ RUN apt-get update && apt-get install -y \
 RUN mkdir -p ${MEOWCOIN_DATA} \
     && mkdir -p ${MEOWCOIN_CONFIG}
 
-# Download and install MeowCoin binaries
-RUN wget -q https://github.com/meowcoin/meowcoin/releases/download/v${MEOWCOIN_VERSION}/meowcoin-${MEOWCOIN_VERSION}-x86_64-linux-gnu.tar.gz \
-    && tar -xzf meowcoin-${MEOWCOIN_VERSION}-x86_64-linux-gnu.tar.gz -C /usr/local --strip-components=1 \
-    && rm meowcoin-${MEOWCOIN_VERSION}-x86_64-linux-gnu.tar.gz
+# Download and install latest MeowCoin binaries
+RUN LATEST_JSON=$(curl -s https://api.github.com/repos/Meowcoin-Foundation/Meowcoin/releases/latest) && \
+    ASSET_URL=$(echo $LATEST_JSON | jq -r '.assets[] | select(.name | test("x86_64-linux-gnu.tar.gz$")) | .browser_download_url') && \
+    curl -L -o meowcoin.tar.gz "$ASSET_URL" && \
+    tar -xzf meowcoin.tar.gz -C /usr/local --strip-components=1 && \
+    rm meowcoin.tar.gz
 
 # Copy configuration files
 COPY config/meowcoin.conf ${MEOWCOIN_CONFIG}/meowcoin.conf

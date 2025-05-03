@@ -55,6 +55,11 @@ export interface NetworkMetrics {
   inboundBandwidth: number; // bytes
   outboundBandwidth: number; // bytes
   lastUpdated: string; // ISO date string
+  /**
+   * Percentage change in network hashrate compared to previous week. Null if not available.
+   * Example: 5.3 means +5.3% from last week.
+   */
+  hashrateChange?: number | null;
 }
 
 /**
@@ -102,7 +107,7 @@ export interface AnalyticsQueryParams extends TimeRangeFilter {
 /**
  * Dashboard widget
  */
-export interface DashboardWidget {
+export interface DashboardWidget<TConfig = unknown> {
   id: string;
   type: 'chart' | 'metric' | 'table' | 'alert' | 'status' | 'custom';
   title: string;
@@ -114,24 +119,7 @@ export interface DashboardWidget {
     w: number;
     h: number;
   };
-  config: {
-    metric?: string;
-    chart?: {
-      type: 'line' | 'bar' | 'pie' | 'area' | 'scatter';
-      stacked?: boolean;
-      showLegend?: boolean;
-      showGrid?: boolean;
-      showTooltip?: boolean;
-      showDataLabels?: boolean;
-    };
-    timeRange?: {
-      start: string;
-      end?: string;
-      preset?: 'last_hour' | 'last_day' | 'last_week' | 'last_month' | 'last_year';
-    };
-    refreshInterval?: number; // seconds
-    [key: string]: any;
-  };
+  config: TConfig;
 }
 
 /**
@@ -151,7 +139,7 @@ export interface Dashboard {
 /**
  * Report
  */
-export interface Report {
+export interface Report<TParams = unknown> {
   id: string;
   name: string;
   description?: string;
@@ -165,7 +153,7 @@ export interface Report {
     timezone: string;
   };
   recipients?: string[]; // email addresses
-  parameters: any;
+  parameters: TParams;
   createdBy: string;
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string

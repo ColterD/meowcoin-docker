@@ -5,7 +5,7 @@ import { z } from 'zod';
 dotenv.config();
 
 // Define configuration schema with validation
-const configSchema = z.object({
+export const configSchema = z.object({
   // Server configuration
   port: z.coerce.number().default(3002),
   nodeEnv: z.enum(['development', 'test', 'production']).default('development'),
@@ -44,36 +44,37 @@ const configSchema = z.object({
   }),
 });
 
-// Parse and validate configuration
-export const config = configSchema.parse({
-  port: process.env.PORT,
-  nodeEnv: process.env.NODE_ENV,
-  logLevel: process.env.LOG_LEVEL,
-  
-  jwtSecret: process.env.JWT_SECRET,
-  
-  database: {
-    url: process.env.DATABASE_URL,
-  },
-  
-  redis: {
-    host: process.env.REDIS_HOST,
-    port: process.env.REDIS_PORT,
-    password: process.env.REDIS_PASSWORD,
-  },
-  
-  meowcoin: {
-    rpcHost: process.env.MEOWCOIN_RPC_HOST,
-    rpcPort: process.env.MEOWCOIN_RPC_PORT,
-    rpcUser: process.env.MEOWCOIN_RPC_USER,
-    rpcPassword: process.env.MEOWCOIN_RPC_PASSWORD,
-    dataDir: process.env.MEOWCOIN_DATA_DIR,
-  },
-  
-  backup: {
-    enabled: process.env.BACKUP_ENABLED === 'true',
-    interval: process.env.BACKUP_INTERVAL,
-    maxBackups: process.env.MAX_BACKUPS,
-    storageDir: process.env.BACKUP_STORAGE_DIR,
-  },
-});
+export function getConfig() {
+  return configSchema.parse({
+    port: process.env.PORT,
+    nodeEnv: process.env.NODE_ENV,
+    logLevel: process.env.LOG_LEVEL,
+    
+    jwtSecret: process.env.JWT_SECRET,
+    
+    database: {
+      url: process.env.DATABASE_URL,
+    },
+    
+    redis: {
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+      password: process.env.REDIS_PASSWORD,
+    },
+    
+    meowcoin: {
+      rpcHost: process.env.MEOWCOIN_RPC_HOST,
+      rpcPort: process.env.MEOWCOIN_RPC_PORT,
+      rpcUser: process.env.MEOWCOIN_RPC_USER,
+      rpcPassword: process.env.MEOWCOIN_RPC_PASSWORD,
+      dataDir: process.env.MEOWCOIN_DATA_DIR,
+    },
+    
+    backup: {
+      enabled: process.env.BACKUP_ENABLED === 'true',
+      interval: process.env.BACKUP_INTERVAL,
+      maxBackups: process.env.MAX_BACKUPS,
+      storageDir: process.env.BACKUP_STORAGE_DIR,
+    },
+  });
+}

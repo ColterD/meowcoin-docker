@@ -39,7 +39,7 @@ export function errorHandler(
   }
 
   // Handle Fastify validation errors
-  if (error.validation) {
+  if ('validation' in error && error.validation) {
     return reply.status(400).send({
       success: false,
       message: 'Validation error',
@@ -50,9 +50,10 @@ export function errorHandler(
   }
 
   // Handle JWT authentication errors
-  if (error.code === 'FST_JWT_NO_AUTHORIZATION_IN_HEADER' || 
+  if ('code' in error && (
+      error.code === 'FST_JWT_NO_AUTHORIZATION_IN_HEADER' || 
       error.code === 'FST_JWT_AUTHORIZATION_TOKEN_EXPIRED' ||
-      error.code === 'FST_JWT_AUTHORIZATION_TOKEN_INVALID') {
+      error.code === 'FST_JWT_AUTHORIZATION_TOKEN_INVALID')) {
     return reply.status(401).send({
       success: false,
       message: 'Authentication required',
@@ -62,7 +63,7 @@ export function errorHandler(
   }
 
   // Handle 404 errors
-  if (error.statusCode === 404) {
+  if ('statusCode' in error && error.statusCode === 404) {
     return reply.status(404).send({
       success: false,
       message: 'Resource not found',
@@ -72,7 +73,7 @@ export function errorHandler(
   }
 
   // Handle all other errors
-  const statusCode = error.statusCode || 500;
+  const statusCode = 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : 500;
   
   // Don't expose internal error details in production
   const message = process.env.NODE_ENV === 'production' && statusCode === 500

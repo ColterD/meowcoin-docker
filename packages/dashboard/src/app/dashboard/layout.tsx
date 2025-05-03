@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   Box,
   CssBaseline,
@@ -48,6 +48,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const theme = useTheme();
   const { theme: currentTheme, setTheme } = useNextTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -227,7 +228,7 @@ export default function DashboardLayout({
               <ListItem key={item.text} disablePadding>
                 <ListItemButton
                   onClick={() => router.push(item.path)}
-                  selected={router.pathname === item.path}
+                  selected={pathname === item.path}
                 >
                   <ListItemIcon>{item.icon}</ListItemIcon>
                   <ListItemText primary={item.text} />

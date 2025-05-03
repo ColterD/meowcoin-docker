@@ -1,16 +1,19 @@
 import axios, { AxiosInstance } from 'axios';
-import { 
-  Block, 
-  Transaction, 
-  BlockchainInfo, 
-  NetworkInfo, 
+import {
+  Block,
+  Transaction,
+  BlockchainInfo,
+  NetworkInfo,
   MempoolInfo,
   MiningInfo,
   PeerInfo,
+  MemoryInfo,
+  ValidateAddressResponse,
+  BlockTemplate,
+  SubmitBlockResponse,
   AppError,
   ErrorCode
 } from '@meowcoin/shared';
-import { logger } from '../utils/logger';
 
 interface RpcConfig {
   host: string;
@@ -23,8 +26,9 @@ interface RpcConfig {
 export class MeowCoinRPC {
   private client: AxiosInstance;
   private id = 0;
+  private logger: any;
 
-  constructor(private config: RpcConfig) {
+  constructor(private config: RpcConfig, logger: any) {
     this.client = axios.create({
       baseURL: `http://${config.host}:${config.port}`,
       auth: {
@@ -36,6 +40,7 @@ export class MeowCoinRPC {
         'Content-Type': 'application/json',
       },
     });
+    this.logger = logger;
   }
 
   private async call<T>(method: string, params: any[] = []): Promise<T> {
@@ -62,8 +67,7 @@ export class MeowCoinRPC {
         throw error;
       }
 
-      logger.error({ error, method, params }, 'RPC call failed');
-      
+      this.logger.error({ error, method, params }, 'RPC call failed');
       throw new AppError(
         ErrorCode.BLOCKCHAIN_ERROR,
         `Failed to call RPC method: ${method}`,
@@ -102,8 +106,8 @@ export class MeowCoinRPC {
     return this.call<MempoolInfo>('getmempoolinfo');
   }
 
-  async getMemoryInfo(): Promise<any> {
-    return this.call<any>('getmemoryinfo');
+  async getMemoryInfo(): Promise<MemoryInfo> {
+    return this.call<MemoryInfo>('getmemoryinfo');
   }
 
   // Network methods
@@ -134,16 +138,16 @@ export class MeowCoinRPC {
   }
 
   // Utility methods
-  async validateAddress(address: string): Promise<any> {
-    return this.call<any>('validateaddress', [address]);
+  async validateAddress(address: string): Promise<ValidateAddressResponse> {
+    return this.call<ValidateAddressResponse>('validateaddress', [address]);
   }
 
-  async getBlockTemplate(): Promise<any> {
-    return this.call<any>('getblocktemplate');
+  async getBlockTemplate(): Promise<BlockTemplate> {
+    return this.call<BlockTemplate>('getblocktemplate');
   }
 
-  async submitBlock(hexData: string): Promise<any> {
-    return this.call<any>('submitblock', [hexData]);
+  async submitBlock(hexData: string): Promise<SubmitBlockResponse> {
+    return this.call<SubmitBlockResponse>('submitblock', [hexData]);
   }
 
   async verifyChain(checkLevel = 3, numBlocks = 6): Promise<boolean> {

@@ -1,6 +1,7 @@
 /**
  * Notification type
  */
+// eslint-disable-next-line no-unused-vars
 export enum NotificationType {
   SYSTEM = 'system',
   NODE = 'node',
@@ -12,6 +13,7 @@ export enum NotificationType {
 /**
  * Notification priority
  */
+// eslint-disable-next-line no-unused-vars
 export enum NotificationPriority {
   LOW = 'low',
   MEDIUM = 'medium',
@@ -22,6 +24,7 @@ export enum NotificationPriority {
 /**
  * Notification status
  */
+// eslint-disable-next-line no-unused-vars
 export enum NotificationStatus {
   UNREAD = 'unread',
   READ = 'read',
@@ -31,6 +34,7 @@ export enum NotificationStatus {
 /**
  * Notification channel
  */
+// eslint-disable-next-line no-unused-vars
 export enum NotificationChannel {
   IN_APP = 'in_app',
   EMAIL = 'email',
@@ -39,6 +43,16 @@ export enum NotificationChannel {
   SLACK = 'slack',
   TELEGRAM = 'telegram',
   DISCORD = 'discord',
+}
+
+// Structured notification data
+export interface NotificationData<T = unknown> {
+  [key: string]: T | undefined;
+}
+
+// Structured notification action data
+export interface NotificationActionData<T = unknown> {
+  [key: string]: T | undefined;
 }
 
 /**
@@ -54,7 +68,7 @@ export interface Notification {
   status: NotificationStatus;
   createdAt: string; // ISO date string
   readAt?: string; // ISO date string
-  data?: any;
+  data?: NotificationData;
   actions?: NotificationAction[];
 }
 
@@ -65,7 +79,7 @@ export interface NotificationAction {
   label: string;
   action: string;
   url?: string;
-  data?: any;
+  data?: NotificationActionData;
 }
 
 /**

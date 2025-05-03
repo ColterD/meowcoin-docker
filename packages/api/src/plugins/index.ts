@@ -1,7 +1,18 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 import Redis from 'ioredis';
 import { config } from '../config';
+import axios from 'axios';
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    redis: Redis;
+    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    authorize: (roles: string[]) => (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    config: typeof config;
+    axios: typeof axios;
+  }
+}
 
 // Redis client plugin
 async function redisPlugin(fastify: FastifyInstance) {
@@ -12,7 +23,6 @@ async function redisPlugin(fastify: FastifyInstance) {
     maxRetriesPerRequest: 3,
   });
 
-  // Handle Redis connection events
   redis.on('connect', () => {
     fastify.log.info('Redis client connected');
   });
@@ -21,19 +31,20 @@ async function redisPlugin(fastify: FastifyInstance) {
     fastify.log.error({ err }, 'Redis client error');
   });
 
-  // Add Redis client to Fastify instance
   fastify.decorate('redis', redis);
-
-  // Close Redis connection when Fastify closes
-  fastify.addHook('onClose', async (instance) => {
+  fastify.addHook('onClose', async (instance: FastifyInstance) => {
     await instance.redis.quit();
   });
 }
 
+// User type guard for FastifyRequest.user
+function hasUserRole(user: unknown): user is { role: string } {
+  return typeof user === 'object' && user !== null && 'role' in user && typeof (user as any).role === 'string';
+}
+
 // Authentication plugin
 async function authPlugin(fastify: FastifyInstance) {
-  // Add authentication decorator
-  fastify.decorate('authenticate', async (request, reply) => {
+  fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
     } catch (err) {
@@ -41,21 +52,13 @@ async function authPlugin(fastify: FastifyInstance) {
     }
   });
 
-  // Add role-based authorization decorator
   fastify.decorate('authorize', (roles: string[]) => {
-    return async (request, reply) => {
-      if (!request.user) {
-        return reply.status(401).send({
-          success: false,
-          message: 'Authentication required',
-          code: 'UNAUTHORIZED',
-          timestamp: new Date().toISOString(),
-        });
+    return async (request: FastifyRequest, reply: FastifyReply) => {
+      let userRole: string | undefined;
+      if (hasUserRole(request.user)) {
+        userRole = request.user.role;
       }
-
-      const userRole = request.user.role;
-      
-      if (!roles.includes(userRole)) {
+      if (!userRole || !roles.includes(userRole)) {
         return reply.status(403).send({
           success: false,
           message: 'Insufficient permissions',
@@ -74,6 +77,10 @@ export async function registerPlugins(fastify: FastifyInstance) {
   
   // Register authentication plugin
   fastify.register(fp(authPlugin));
+  
+  // Decorate config and axios
+  fastify.decorate('config', config);
+  fastify.decorate('axios', axios.create());
   
   // Add request ID to each request
   fastify.addHook('onRequest', (request, _, done) => {

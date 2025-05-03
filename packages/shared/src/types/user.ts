@@ -1,6 +1,7 @@
 /**
  * User roles
  */
+// eslint-disable-next-line no-unused-vars
 export enum UserRole {
   ADMIN = 'admin',
   OPERATOR = 'operator',
@@ -11,6 +12,7 @@ export enum UserRole {
 /**
  * User status
  */
+// eslint-disable-next-line no-unused-vars
 export enum UserStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
@@ -21,6 +23,7 @@ export enum UserStatus {
 /**
  * MFA method
  */
+// eslint-disable-next-line no-unused-vars
 export enum MfaMethod {
   TOTP = 'totp',
   SMS = 'sms',
@@ -50,6 +53,17 @@ export interface UserProfile {
 /**
  * User preferences
  */
+// Dashboard layout type for user preferences
+export interface DashboardLayout<TSettings = unknown> {
+  widgets: Array<{
+    id: string;
+    type: string;
+    position: { x: number; y: number; w: number; h: number };
+    settings?: TSettings;
+  }>;
+  layoutVersion?: number;
+}
+
 export interface UserPreferences {
   theme: 'light' | 'dark' | 'system';
   language: string;
@@ -64,7 +78,7 @@ export interface UserPreferences {
     telegram?: boolean;
     discord?: boolean;
   };
-  dashboardLayout?: any; // User's custom dashboard layout
+  dashboardLayout?: DashboardLayout; // User's custom dashboard layout
 }
 
 /**
@@ -129,6 +143,17 @@ export interface ApiKey {
 }
 
 /**
+ * Structured details for audit log entries
+ */
+export interface AuditLogDetails<TResource = unknown> {
+  before?: TResource;
+  after?: TResource;
+  changedFields?: string[];
+  context?: Partial<TResource>;
+  [key: string]: unknown;
+}
+
+/**
  * Audit log entry
  */
 export interface AuditLogEntry {
@@ -141,5 +166,5 @@ export interface AuditLogEntry {
   timestamp: string; // ISO date string
   ip: string;
   userAgent: string;
-  details?: any;
+  details?: AuditLogDetails;
 }

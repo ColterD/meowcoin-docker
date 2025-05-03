@@ -14,6 +14,8 @@ import {
   Divider,
   useTheme,
   Tooltip,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -26,31 +28,91 @@ import {
 import { LineChart } from '@mui/x-charts/LineChart';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { PieChart } from '@mui/x-charts/PieChart';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { NodeStatus } from '@meowcoin/shared';
 
 export default function DashboardPage() {
   const theme = useTheme();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<number | null>(null);
 
   // Fetch node status
-  const { data: nodeStatus, isLoading: isLoadingNodes } = useQuery({
+  const {
+    data: nodeStatus,
+    isLoading: isLoadingNodes,
+    error: nodeError,
+    refetch: refetchNodes,
+  } = useQuery({
     queryKey: ['nodes', refreshKey],
     queryFn: async () => {
       const response = await api.get('/nodes');
       return response.data.data;
     },
-  });
+    onError: (err: any) => {
+      if (err?.status === 503) {
+        setErrorBanner('Node is unreachable. Please check your node status and try again.');
+      } else if (err?.message) {
+        setErrorBanner(err.message);
+      } else {
+        setErrorBanner('Unknown error fetching node status.');
+      }
+    },
+  } as UseQueryOptions<any, Error>);
 
   // Fetch blockchain info
-  const { data: blockchainInfo, isLoading: isLoadingBlockchain } = useQuery({
+  const {
+    data: blockchainInfo,
+    isLoading: isLoadingBlockchain,
+    error: blockchainError,
+    refetch: refetchBlockchain,
+  } = useQuery({
     queryKey: ['blockchain', refreshKey],
     queryFn: async () => {
       const response = await api.get('/blockchain/info');
       return response.data.data;
     },
-  });
+    onError: (err: any) => {
+      if (err?.status === 503) {
+        setErrorBanner('Node is unreachable. Please check your node status and try again.');
+      } else if (err?.message) {
+        setErrorBanner(err.message);
+      } else {
+        setErrorBanner('Unknown error fetching blockchain info.');
+      }
+    },
+  } as UseQueryOptions<any, Error>);
+
+  // Fetch health info for sync status
+  const {
+    data: healthInfo,
+    isLoading: isLoadingHealth,
+    error: healthError,
+    refetch: refetchHealth,
+  } = useQuery({
+    queryKey: ['health', refreshKey],
+    queryFn: async () => {
+      const response = await api.get('/health');
+      return response.data;
+    },
+    onSuccess: (data: any) => {
+      if (data.status === 'degraded') {
+        setErrorBanner(
+          `Node is syncing. Some data may be incomplete. Sync progress: ${data.node?.syncProgress ?? '?'}%`
+        );
+        setSyncProgress(data.node?.syncProgress ?? null);
+      } else if (data.status === 'unhealthy') {
+        setErrorBanner('Node is unreachable. Please check your node status and try again.');
+      } else {
+        setErrorBanner(null);
+        setSyncProgress(null);
+      }
+    },
+    onError: (err: any) => {
+      setErrorBanner('Unable to fetch node health.');
+    },
+  } as UseQueryOptions<any, Error>);
 
   // Fetch network info
   const { data: networkInfo, isLoading: isLoadingNetwork } = useQuery({
@@ -59,7 +121,16 @@ export default function DashboardPage() {
       const response = await api.get('/network/info');
       return response.data.data;
     },
-  });
+    onError: (err: any) => {
+      if (err?.status === 503) {
+        setErrorBanner('Node is unreachable. Please check your node status and try again.');
+      } else if (err?.message) {
+        setErrorBanner(err.message);
+      } else {
+        setErrorBanner('Unknown error fetching network info.');
+      }
+    },
+  } as UseQueryOptions<any, Error>);
 
   // Fetch historical data
   const { data: historicalData, isLoading: isLoadingHistorical } = useQuery({
@@ -68,53 +139,105 @@ export default function DashboardPage() {
       const response = await api.get('/analytics/historical');
       return response.data.data;
     },
-  });
+    onError: (err: any) => {
+      if (err?.status === 503) {
+        setErrorBanner('Node is unreachable. Please check your node status and try again.');
+      } else if (err?.message) {
+        setErrorBanner(err.message);
+      } else {
+        setErrorBanner('Unknown error fetching historical data.');
+      }
+    },
+  } as UseQueryOptions<any, Error>);
 
   const handleRefresh = () => {
-    setRefreshKey((prev) => prev + 1);
+    setRefreshKey((prev: number) => prev + 1);
+    setErrorBanner(null);
+    setSyncProgress(null);
+    refetchNodes();
+    refetchBlockchain();
+    refetchHealth();
   };
 
-  // Mock data for charts
-  const blockTimeData = {
-    xAxis: [
-      {
-        data: Array.from({ length: 24 }, (_, i) => i),
-        scaleType: 'linear',
-      },
-    ],
-    series: [
-      {
-        data: Array.from({ length: 24 }, () => Math.floor(Math.random() * 50) + 100),
-        label: 'Block Time (seconds)',
-        color: theme.palette.primary.main,
-      },
-    ],
-  };
+  // --- Refactored: Use real data for charts ---
+  // Block Time Chart
+  const blockTimeSeries = historicalData?.blockTime as { x: string[]; y: number[] } | undefined;
+  const blockTimeData = blockTimeSeries
+    ? {
+        xAxis: [
+          {
+            data: blockTimeSeries.x,
+            scaleType: 'linear',
+          } as { data: string[]; scaleType: 'linear' },
+        ],
+        series: [
+          {
+            data: blockTimeSeries.y,
+            label: 'Block Time (seconds)',
+            color: theme.palette.primary.main,
+          },
+        ],
+      }
+    : undefined;
 
-  const transactionData = {
-    xAxis: [
-      {
-        data: Array.from({ length: 7 }, (_, i) => i),
-        scaleType: 'linear',
-      },
-    ],
-    series: [
-      {
-        data: Array.from({ length: 7 }, () => Math.floor(Math.random() * 1000) + 500),
-        label: 'Transactions',
-        color: theme.palette.secondary.main,
-      },
-    ],
-  };
+  // Transactions Chart
+  const transactionSeries = historicalData?.transactions as { x: string[]; y: number[] } | undefined;
+  const transactionData = transactionSeries
+    ? {
+        xAxis: [
+          {
+            data: transactionSeries.x,
+            scaleType: 'linear',
+          } as { data: string[]; scaleType: 'linear' },
+        ],
+        series: [
+          {
+            data: transactionSeries.y,
+            label: 'Transactions',
+            color: theme.palette.secondary.main,
+          },
+        ],
+      }
+    : undefined;
 
-  const nodeStatusData = [
-    { id: 0, value: 65, label: 'Running', color: theme.palette.success.main },
-    { id: 1, value: 25, label: 'Syncing', color: theme.palette.warning.main },
-    { id: 2, value: 10, label: 'Stopped', color: theme.palette.error.main },
-  ];
+  // Node Status Pie Chart
+  type NodeStatusType = { status: string };
+  const nodeStatusData = nodeStatus
+    ? [
+        {
+          id: 0,
+          value: (nodeStatus as NodeStatusType[]).filter((n) => n.status === NodeStatus.RUNNING).length,
+          label: 'Running',
+          color: theme.palette.success.main,
+        },
+        {
+          id: 1,
+          value: (nodeStatus as NodeStatusType[]).filter((n) => n.status === NodeStatus.SYNCING).length,
+          label: 'Syncing',
+          color: theme.palette.warning.main,
+        },
+        {
+          id: 2,
+          value: (nodeStatus as NodeStatusType[]).filter((n) => n.status === NodeStatus.STOPPED).length,
+          label: 'Stopped',
+          color: theme.palette.error.main,
+        },
+      ]
+    : [];
 
   return (
     <Box>
+      {/* Error Banner */}
+      {errorBanner && (
+        <Alert severity={syncProgress ? 'warning' : 'error'} sx={{ mb: 2 }} action={
+          <Button color="inherit" size="small" onClick={handleRefresh}>
+            Retry
+          </Button>
+        }>
+          {errorBanner}
+        </Alert>
+      )}
+
       <Box
         sx={{
           display: 'flex',
@@ -164,7 +287,12 @@ export default function DashboardPage() {
               {isLoadingBlockchain ? '...' : blockchainInfo?.blocks || 0}
             </Typography>
             <Typography color="textSecondary" sx={{ flex: 1 }}>
-              Last block: {isLoadingBlockchain ? '...' : '2 minutes ago'}
+              {/* TODO: Replace with real last block time from API if available */}
+              Last block: {isLoadingBlockchain
+                ? '...'
+                : blockchainInfo?.lastBlockTime
+                  ? blockchainInfo.lastBlockTime
+                  : 'N/A'}
             </Typography>
           </Paper>
         </Grid>
@@ -230,10 +358,18 @@ export default function DashboardPage() {
               <MemoryIcon sx={{ color: theme.palette.success.main }} />
             </Box>
             <Typography component="p" variant="h4" sx={{ mt: 1 }}>
-              {isLoadingNetwork ? '...' : '1.23 PH/s'}
+              {/* TODO: Replace with real network hashrate from API if available */}
+              {isLoadingNetwork
+                ? '...'
+                : networkInfo?.hashrate
+                  ? networkInfo.hashrate
+                  : 'N/A'}
             </Typography>
             <Typography color="textSecondary" sx={{ flex: 1 }}>
-              +5.3% from last week
+              {/* TODO: Replace with real hashrate change from API if available */}
+              {networkInfo?.hashrateChange
+                ? `${networkInfo.hashrateChange} from last week`
+                : 'N/A'}
             </Typography>
           </Paper>
         </Grid>
@@ -262,9 +398,15 @@ export default function DashboardPage() {
               <SpeedIcon sx={{ color: theme.palette.warning.main }} />
             </Box>
             <Typography component="p" variant="h4" sx={{ mt: 1 }}>
-              {isLoadingBlockchain ? '...' : '2.5 min'}
+              {/* TODO: Replace with real average block time from API if available */}
+              {isLoadingBlockchain
+                ? '...'
+                : blockchainInfo?.averageBlockTime
+                  ? blockchainInfo.averageBlockTime
+                  : 'N/A'}
             </Typography>
             <Typography color="textSecondary" sx={{ flex: 1 }}>
+              {/* Optionally, add more context if available from API */}
               Last 24 hours
             </Typography>
           </Paper>
@@ -284,11 +426,17 @@ export default function DashboardPage() {
             <Divider />
             <CardContent>
               <Box sx={{ height: 300 }}>
-                <LineChart
-                  xAxis={blockTimeData.xAxis}
-                  series={blockTimeData.series}
-                  height={300}
-                />
+                {isLoadingHistorical ? (
+                  <Typography>Loading...</Typography>
+                ) : blockTimeData ? (
+                  <LineChart
+                    xAxis={blockTimeData.xAxis}
+                    series={blockTimeData.series}
+                    height={300}
+                  />
+                ) : (
+                  <Typography>No data available</Typography>
+                )}
               </Box>
             </CardContent>
           </Card>
@@ -307,20 +455,26 @@ export default function DashboardPage() {
             <Divider />
             <CardContent>
               <Box sx={{ height: 300 }}>
-                <PieChart
-                  series={[
-                    {
-                      data: nodeStatusData,
-                      innerRadius: 60,
-                      outerRadius: 80,
-                      paddingAngle: 2,
-                      cornerRadius: 5,
-                      startAngle: -90,
-                      endAngle: 270,
-                    },
-                  ]}
-                  height={300}
-                />
+                {isLoadingNodes ? (
+                  <Typography>Loading...</Typography>
+                ) : nodeStatusData.length > 0 ? (
+                  <PieChart
+                    series={[
+                      {
+                        data: nodeStatusData,
+                        innerRadius: 60,
+                        outerRadius: 80,
+                        paddingAngle: 2,
+                        cornerRadius: 5,
+                        startAngle: -90,
+                        endAngle: 270,
+                      },
+                    ]}
+                    height={300}
+                  />
+                ) : (
+                  <Typography>No data available</Typography>
+                )}
               </Box>
             </CardContent>
           </Card>
@@ -339,11 +493,17 @@ export default function DashboardPage() {
             <Divider />
             <CardContent>
               <Box sx={{ height: 300 }}>
-                <BarChart
-                  xAxis={transactionData.xAxis}
-                  series={transactionData.series}
-                  height={300}
-                />
+                {isLoadingHistorical ? (
+                  <Typography>Loading...</Typography>
+                ) : transactionData ? (
+                  <BarChart
+                    xAxis={transactionData.xAxis}
+                    series={transactionData.series}
+                    height={300}
+                  />
+                ) : (
+                  <Typography>No data available</Typography>
+                )}
               </Box>
             </CardContent>
           </Card>

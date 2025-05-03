@@ -80,7 +80,7 @@ export interface TransactionOutput {
 /**
  * Blockchain info
  */
-export interface BlockchainInfo {
+export interface BlockchainInfo<Softfork = unknown> {
   chain: 'main' | 'test' | 'regtest';
   blocks: number;
   headers: number;
@@ -95,7 +95,7 @@ export interface BlockchainInfo {
   pruneheight?: number;
   automatic_pruning?: boolean;
   prune_target_size?: number;
-  softforks: Record<string, SoftforkInfo>;
+  softforks: Record<string, Softfork>;
   warnings?: string;
 }
 
@@ -234,3 +234,76 @@ export interface WalletInfo {
   scanning: boolean;
   descriptors: boolean;
 }
+
+/**
+ * Memory info (from getmemoryinfo)
+ */
+export interface MemoryInfo {
+  locked: {
+    used: number;
+    free: number;
+    total: number;
+    locked: number;
+    chunks_used: number;
+    chunks_free: number;
+  };
+}
+
+/**
+ * Validate address response (from validateaddress)
+ */
+export interface ValidateAddressResponse {
+  isvalid: boolean;
+  address?: string;
+  scriptPubKey?: string;
+  isscript?: boolean;
+  iswitness?: boolean;
+  witness_version?: number;
+  witness_program?: string;
+  pubkey?: string;
+  ismine?: boolean;
+  iswatchonly?: boolean;
+  hdkeypath?: string;
+  hdmasterfingerprint?: string;
+  labels?: string[];
+  // Add more fields as needed
+}
+
+/**
+ * Block template (from getblocktemplate)
+ */
+export interface BlockTemplate<VB = number, AUX = string> {
+  version: number;
+  rules: string[];
+  vbavailable: Record<string, VB>;
+  vbrequired: number;
+  previousblockhash: string;
+  transactions: Array<{
+    data: string;
+    hash: string;
+    depends: number[];
+    fee: number;
+    sigops: number;
+    weight: number;
+  }>;
+  coinbaseaux: Record<string, AUX>;
+  coinbasevalue: number;
+  longpollid: string;
+  target: string;
+  mintime: number;
+  mutable: string[];
+  noncerange: string;
+  sigoplimit: number;
+  sizelimit: number;
+  weightlimit: number;
+  curtime: number;
+  bits: string;
+  height: number;
+  default_witness_commitment?: string;
+  // Add more fields as needed
+}
+
+/**
+ * Submit block response (from submitblock)
+ */
+export type SubmitBlockResponse = null | string; // null if accepted, string error otherwise

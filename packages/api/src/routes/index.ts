@@ -1,10 +1,12 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, RouteShorthandOptions } from 'fastify';
 import { nodeRoutes } from './node';
 import { userRoutes } from './user';
 import { blockchainRoutes } from './blockchain';
 import { analyticsRoutes } from './analytics';
 import { notificationRoutes } from './notification';
 import { webhookRoutes } from './webhook';
+import { networkRoutes } from './network';
+import WebSocket from 'ws';
 
 export function registerRoutes(server: FastifyInstance) {
   // Register all API routes
@@ -14,6 +16,7 @@ export function registerRoutes(server: FastifyInstance) {
   server.register(analyticsRoutes, { prefix: '/api/analytics' });
   server.register(notificationRoutes, { prefix: '/api/notifications' });
   server.register(webhookRoutes, { prefix: '/api/webhooks' });
+  server.register(networkRoutes, { prefix: '/api/network' });
   
   // Register authentication routes
   server.register(async function authRoutes(fastify) {
@@ -97,55 +100,78 @@ export function registerRoutes(server: FastifyInstance) {
   
   // Register WebSocket routes
   server.register(async function wsRoutes(fastify) {
-    fastify.get('/node-updates', { websocket: true }, (connection, req) => {
-      // Handle WebSocket connection for node updates
-      connection.socket.on('message', (message) => {
-        // Process message
-        const data = JSON.parse(message.toString());
-        
-        // Send updates
-        connection.socket.send(JSON.stringify({
+    // Node updates: stream real-time node info
+    const wsOptions: RouteShorthandOptions = { websocket: true };
+    fastify.get('/node-updates', wsOptions, (connection, _req) => {
+      let interval: NodeJS.Timeout | null = null;
+      let getNodeInfo: any;
+      try {
+        // Prefer local source import for dev
+        getNodeInfo = require('../../../blockchain/src/services/nodeManager').getNodeInfo;
+      } catch (e) {
+        // Fallback to dist import for prod
+        getNodeInfo = require('@meowcoin/blockchain/dist/services/nodeManager').getNodeInfo;
+      }
+      const sendNodeInfo = async () => {
+        try {
+          const nodeInfo = await getNodeInfo();
+          (connection.socket as WebSocket).send(JSON.stringify({
+            type: 'node-update',
+            data: nodeInfo,
+          }));
+        } catch (err) {
+          (connection.socket as WebSocket).send(JSON.stringify({
           type: 'node-update',
-          data: {
-            // Node data would come from the blockchain service
-            id: data.nodeId,
-            status: 'running',
-            resources: {
-              cpuUsage: 45,
-              memoryUsage: 60,
-              diskUsage: 30,
-            },
-            timestamp: new Date().toISOString(),
-          },
+            error: 'Failed to fetch node info',
+            details: err instanceof Error ? err.message : err,
         }));
-      });
-      
-      // Handle disconnection
+        }
+      };
+      interval = setInterval(sendNodeInfo, 10000);
+      sendNodeInfo();
       connection.socket.on('close', () => {
+        if (interval) clearInterval(interval);
         fastify.log.info('WebSocket connection closed');
       });
     });
-    
-    fastify.get('/blockchain-updates', { websocket: true }, (connection, req) => {
-      // Handle WebSocket connection for blockchain updates
-      connection.socket.on('message', (message) => {
-        // Process message
-        const data = JSON.parse(message.toString());
-        
-        // Send updates
-        connection.socket.send(JSON.stringify({
+    // Blockchain updates: stream real-time blockchain info
+    fastify.get('/blockchain-updates', wsOptions, (connection, _req) => {
+      let interval: NodeJS.Timeout | null = null;
+      let MeowCoinRPC: any, config: any;
+      try {
+        // Prefer local source import for dev
+        MeowCoinRPC = require('../../../blockchain/src/services/meowcoinRPC').MeowCoinRPC;
+        config = require('../../../blockchain/src/config').getConfig();
+      } catch (e) {
+        // Fallback to dist import for prod
+        MeowCoinRPC = require('@meowcoin/blockchain/dist/services/meowcoinRPC').MeowCoinRPC;
+        config = require('@meowcoin/blockchain/dist/config').config;
+      }
+      const sendBlockchainInfo = async () => {
+        try {
+          const rpc = new MeowCoinRPC({
+            host: config.meowcoin.rpcHost,
+            port: config.meowcoin.rpcPort,
+            user: config.meowcoin.rpcUser,
+            password: config.meowcoin.rpcPassword,
+          });
+          const info = await rpc.getBlockchainInfo();
+          (connection.socket as WebSocket).send(JSON.stringify({
+            type: 'blockchain-update',
+            data: info,
+          }));
+        } catch (err) {
+          (connection.socket as WebSocket).send(JSON.stringify({
           type: 'blockchain-update',
-          data: {
-            // Blockchain data would come from the blockchain service
-            blockHeight: 12345,
-            transactions: 100,
-            timestamp: new Date().toISOString(),
-          },
+            error: 'Failed to fetch blockchain info',
+            details: err instanceof Error ? err.message : err,
         }));
-      });
-      
-      // Handle disconnection
+        }
+      };
+      interval = setInterval(sendBlockchainInfo, 10000);
+      sendBlockchainInfo();
       connection.socket.on('close', () => {
+        if (interval) clearInterval(interval);
         fastify.log.info('WebSocket connection closed');
       });
     });

@@ -1,5 +1,24 @@
 import { FastifyInstance } from 'fastify';
 import { NodeAction, NodeType } from '@meowcoin/shared';
+import { z } from 'zod';
+
+// Zod schemas for input validation
+const nodeIdSchema = z.object({ id: z.string().min(1) });
+const createNodeSchema = z.object({
+  name: z.string().min(1),
+  type: z.nativeEnum(NodeType),
+  rpcEnabled: z.boolean().optional(),
+  rpcPort: z.number().optional(),
+  p2pPort: z.number().optional(),
+  // Add additional properties as needed
+});
+const updateNodeSchema = z.object({
+  name: z.string().min(1).optional(),
+  rpcEnabled: z.boolean().optional(),
+  rpcPort: z.number().optional(),
+  p2pPort: z.number().optional(),
+  // Add additional properties as needed
+});
 
 export async function nodeRoutes(fastify: FastifyInstance) {
   // Get all nodes
@@ -72,7 +91,8 @@ export async function nodeRoutes(fastify: FastifyInstance) {
     },
     onRequest: [fastify.authenticate],
     handler: async (request, reply) => {
-      const { id } = request.params as { id: string };
+      const params = nodeIdSchema.parse(request.params);
+      const { id } = params;
       
       // Forward to blockchain service
       const blockchainServiceUrl = fastify.config.services.blockchain;
@@ -123,9 +143,10 @@ export async function nodeRoutes(fastify: FastifyInstance) {
     },
     onRequest: [fastify.authenticate, fastify.authorize(['admin', 'operator'])],
     handler: async (request, reply) => {
+      const body = createNodeSchema.parse(request.body);
       // Forward to blockchain service
       const blockchainServiceUrl = fastify.config.services.blockchain;
-      const response = await fastify.axios.post(`${blockchainServiceUrl}/nodes`, request.body, {
+      const response = await fastify.axios.post(`${blockchainServiceUrl}/nodes`, body, {
         headers: {
           Authorization: request.headers.authorization,
         },
@@ -174,11 +195,13 @@ export async function nodeRoutes(fastify: FastifyInstance) {
     },
     onRequest: [fastify.authenticate, fastify.authorize(['admin', 'operator'])],
     handler: async (request, reply) => {
-      const { id } = request.params as { id: string };
+      const params = nodeIdSchema.parse(request.params);
+      const body = updateNodeSchema.parse(request.body);
+      const { id } = params;
       
       // Forward to blockchain service
       const blockchainServiceUrl = fastify.config.services.blockchain;
-      const response = await fastify.axios.patch(`${blockchainServiceUrl}/nodes/${id}`, request.body, {
+      const response = await fastify.axios.patch(`${blockchainServiceUrl}/nodes/${id}`, body, {
         headers: {
           Authorization: request.headers.authorization,
         },
@@ -392,5 +415,16 @@ export async function nodeRoutes(fastify: FastifyInstance) {
       
       return reply.send(response.data);
     },
+  });
+
+  // GET /node/info
+  fastify.get('/info', async (req, res) => {
+    try {
+      const { getNodeInfo } = require('../../../blockchain/src/services/nodeManager');
+      const info = await getNodeInfo();
+      res.send({ success: true, data: info });
+    } catch (err) {
+      res.status(500).send({ success: false, error: 'Failed to fetch node info', details: err instanceof Error ? err.message : err });
+    }
   });
 }

@@ -1,0 +1,48 @@
+/**
+ * Blockchain constants
+ */
+export declare const BLOCK_TIME = 150;
+export declare const BLOCKS_PER_DAY: number;
+export declare const BLOCKS_PER_WEEK: number;
+export declare const BLOCKS_PER_MONTH: number;
+export declare const BLOCKS_PER_YEAR: number;
+export declare const MAX_BLOCK_SIZE = 1000000;
+export declare const MAX_BLOCK_WEIGHT = 4000000;
+export declare const MAX_BLOCK_SIGOPS = 80000;
+export declare const COINBASE_MATURITY = 100;
+export declare const MINIMUM_CHAIN_WORK = "0x0000000000000000000000000000000000000000000000000000000000000000";
+export declare const POW_LIMIT = "00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+export declare const POW_TARGET_TIMESPAN: number;
+export declare const POW_TARGET_SPACING = 150;
+export declare const POW_RETARGET_INTERVAL: number;
+export declare const POW_LIMIT_BITS = 504365055;
+export declare const COIN = 100000000;
+export declare const MAX_MONEY: number;
+export declare const INITIAL_BLOCK_REWARD: number;
+export declare const HALVING_INTERVAL = 210000;
+export declare const MIN_TX_FEE = 1000;
+export declare const MIN_RELAY_TX_FEE = 1000;
+export declare const DUST_RELAY_TX_FEE = 3000;
+export declare const MAINNET_PORT = 9333;
+export declare const TESTNET_PORT = 19333;
+export declare const REGTEST_PORT = 19444;
+export declare const MAINNET_RPC_PORT = 9332;
+export declare const TESTNET_RPC_PORT = 19332;
+export declare const REGTEST_RPC_PORT = 19443;
+export declare const MAX_PROTOCOL_VERSION = 70016;
+export declare const MIN_PROTOCOL_VERSION = 70015;
+export declare const MAX_SCRIPT_SIZE = 10000;
+export declare const MAX_SCRIPT_ELEMENT_SIZE = 520;
+export declare const MAX_SCRIPT_OPCODES = 201;
+export declare const MAX_P2SH_SIGOPS = 15;
+export declare const DEFAULT_MAX_MEMPOOL_SIZE = 300;
+export declare const DEFAULT_MEMPOOL_EXPIRY = 336;
+export declare const DEFAULT_INCREMENTAL_RELAY_FEE = 1000;
+export declare const DEFAULT_MIN_RELAY_TX_FEE = 1000;
+export declare const PUBKEY_ADDRESS_PREFIX = 50;
+export declare const SCRIPT_ADDRESS_PREFIX = 5;
+export declare const SECRET_KEY_PREFIX = 176;
+export declare const EXT_PUBLIC_KEY_PREFIX = 76067358;
+export declare const EXT_SECRET_KEY_PREFIX = 76066276;
+export declare const BIP32_HARDENED_KEY_LIMIT = 2147483648;
+export declare const BIP44_COIN_TYPE = 2147483690;
