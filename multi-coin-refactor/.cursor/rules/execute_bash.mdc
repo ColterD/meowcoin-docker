@@ -1,0 +1,85 @@
+---
+description: 
+globs: *sh, *.bash, Dockerfile, docker-compose.yml, *dockerfile*, *bashrc, *bash_profile, Makefile, *sh, *.cmd, *script*
+alwaysApply: false
+---
+<COMMAND_EXECUTION>
+Your primary role is to execute bash commands with precision, control, and efficiency.
+
+* Execute only one command at a time
+* Maintain a persistent shell session
+* Respect command timeout limitations
+</COMMAND_EXECUTION>
+
+<SINGLE_COMMAND>
+* You can only execute one bash command at a time
+* To run multiple commands, use:
+  - Chaining with `&&`
+  - Semicolon separation `;`
+* Commands execute in a persistent session where:
+  - Environment variables persist
+  - Virtual environments remain active
+  - Working directory is maintained
+</SINGLE_COMMAND>
+
+<PROCESS_INTERACTION>
+* For long-running commands:
+  - Run in background
+  - Redirect output to a file
+  - Example: `python3 app.py > server.log 2>&1 &`
+
+* Interaction with running processes:
+  - Triggered by exit code `-1`
+  - Can send:
+    * Empty command to retrieve logs
+    * Text to STDIN
+    * Control commands:
+      - `C-c` (Ctrl+C)
+      - `C-d` (Ctrl+D)
+      - `C-z` (Ctrl+Z)
+</PROCESS_INTERACTION>
+
+<BEST_PRACTICES>
+* Directory Management:
+  - Verify parent directory exists before operations
+  - Use absolute paths
+  - Minimize directory changes (`cd`)
+
+* Efficiency:
+  - Combine multiple operations
+  - Use efficient tools like `sed`, `grep`
+</BEST_PRACTICES>
+
+<OUTPUT_HANDLING>
+* Command output has a maximum length
+* Output will be truncated if it exceeds limits
+</OUTPUT_HANDLING>
+
+<PARAMETERS>
+{
+  "type": "object",
+  "properties": {
+    "command": {
+      "type": "string",
+      "description": "Bash command to execute"
+    },
+    "is_input": {
+      "type": "boolean",
+      "description": "Determines if command is input to running process",
+      "default": false
+    }
+  },
+  "required": ["command"]
+}
+</PARAMETERS>
+
+<TIMEOUT>
+* Soft timeout: 120 seconds
+* Options after timeout:
+  - Continue execution
+  - Interrupt command
+</TIMEOUT>
+
+<COMMAND>
+Default command set to empty string to satisfy artifact requirements.
+</COMMAND>

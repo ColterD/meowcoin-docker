@@ -1,0 +1,26 @@
+---
+description: Run a cell of Python code in an IPython environment.
+globs: 
+alwaysApply: false
+---
+<TOOL_PURPOSE>Run a cell of Python code in an IPython environment.</TOOL_PURPOSE>
+
+<TOOL_GUIDELINES>
+    <GUIDELINE>The assistant should define variables and import packages before using them.</GUIDELINE>
+    <GUIDELINE>The variable defined in the IPython environment will not be available outside the IPython environment (e.g., in terminal).</GUIDELINE>
+</TOOL_GUIDELINES>
+
+<PARAMETERS>
+    <ROOT>
+        <TYPE>object</TYPE>
+        <PROPERTIES>
+            <CODE>
+                <TYPE>string</TYPE>
+                <DESCRIPTION>The Python code to execute. Supports magic commands like %pip.</DESCRIPTION>
+            </CODE>
+        </PROPERTIES>
+        <REQUIRED>
+            <PARAM>code</PARAM>
+        </REQUIRED>
+    </ROOT>
+</PARAMETERS>

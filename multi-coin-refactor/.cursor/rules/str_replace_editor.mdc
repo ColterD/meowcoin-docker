@@ -1,0 +1,96 @@
+---
+description: Custom editing tool for viewing, creating and editing files in plain-text format
+globs: 
+alwaysApply: false
+---
+<TOOL_PURPOSE>
+Custom editing tool for viewing, creating and editing files in plain-text format
+</TOOL_PURPOSE>
+<TOOL_STATE>
+Persistent across command calls and discussions with the user
+</TOOL_STATE>
+<VIEW_BEHAVIOR>
+If path is a file, displays the result of applying cat -n. If path is a directory, lists non-hidden files and directories up to 2 levels deep
+</VIEW_BEHAVIOR>
+<CREATE_RESTRICTION>
+Cannot be used if the specified path already exists as a file
+</CREATE_RESTRICTION>
+<OUTPUT_HANDLING>
+If a command generates a long output, it will be truncated and marked with <response clipped>
+</OUTPUT_HANDLING>
+<UNDO_CAPABILITY>
+The undo_edit command will revert the last edit made to the file at path
+</UNDO_CAPABILITY>
+<USAGE_GUIDELINES>
+Before using this tool:
+
+Use the view tool to understand the file's contents and context
+Verify the directory path is correct (only applicable when creating new files):
+
+Use the view tool to verify the parent directory exists and is the correct location
+</USAGE_GUIDELINES>
+
+
+
+<EDIT_GUIDELINES>
+Ensure the edit results in idiomatic, correct code
+Do not leave the code in a broken state
+Always use absolute file paths (starting with /)
+</EDIT_GUIDELINES>
+
+<CRITICAL_REQUIREMENTS>
+EXACT MATCHING: The old_str parameter must match EXACTLY one or more consecutive lines from the file, including all whitespace and indentation. The tool will fail if old_str matches multiple locations or doesn't match exactly with the file content.
+UNIQUENESS: The old_str must uniquely identify a single instance in the file:
+
+Include sufficient context before and after the change point (3-5 lines recommended)
+If not unique, the replacement will not be performed
+
+
+REPLACEMENT: The new_str parameter should contain the edited lines that replace the old_str. Both strings must be different.
+</CRITICAL_REQUIREMENTS>
+
+<RECOMMENDED_PRACTICE>
+When making multiple file edits in a row to the same file, prefer to send all edits in a single message with multiple calls to this tool, rather than multiple messages with a single call each.
+</RECOMMENDED_PRACTICE>
+<NO_QUICK_FIX_EDITS>
+Never use this tool for quick fixes, hacks, or temporary edits. All file edits must be robust, maintainable, and production-ready. Reference the core.mdc and AI_AGENT_ROADMAP.md for documentation and best practices requirements.
+</NO_QUICK_FIX_EDITS>
+<PARAMETERS>
+  <COMMAND>
+    <DESCRIPTION>The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.</DESCRIPTION>
+    <TYPE>string</TYPE>
+    <ENUM>view,create,str_replace,insert,undo_edit</ENUM>
+    <REQUIRED>true</REQUIRED>
+  </COMMAND>
+  <PATH>
+    <DESCRIPTION>Absolute path to file or directory, e.g. `/workspace/file.py` or `/workspace`.</DESCRIPTION>
+    <TYPE>string</TYPE>
+    <REQUIRED>true</REQUIRED>
+  </PATH>
+  <FILE_TEXT>
+    <DESCRIPTION>Required parameter of `create` command, with the content of the file to be created.</DESCRIPTION>
+    <TYPE>string</TYPE>
+    <REQUIRED>false</REQUIRED>
+  </FILE_TEXT>
+  <OLD_STR>
+    <DESCRIPTION>Required parameter of `str_replace` command containing the string in `path` to replace.</DESCRIPTION>
+    <TYPE>string</TYPE>
+    <REQUIRED>false</REQUIRED>
+  </OLD_STR>
+  <NEW_STR>
+    <DESCRIPTION>Optional parameter of `str_replace` command containing the new string (if not given, no string will be added). Required parameter of `insert` command containing the string to insert.</DESCRIPTION>
+    <TYPE>string</TYPE>
+    <REQUIRED>false</REQUIRED>
+  </NEW_STR>
+  <INSERT_LINE>
+    <DESCRIPTION>Required parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`.</DESCRIPTION>
+    <TYPE>integer</TYPE>
+    <REQUIRED>false</REQUIRED>
+  </INSERT_LINE>
+  <VIEW_RANGE>
+    <DESCRIPTION>Optional parameter of `view` command when `path` points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicated line number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start. Setting `[start_line, -1]` shows all lines from `start_line` to the end of the file.</DESCRIPTION>
+    <TYPE>array</TYPE>
+    <ITEMS_TYPE>integer</ITEMS_TYPE>
+    <REQUIRED>false</REQUIRED>
+  </VIEW_RANGE>
+</PARAMETERS>

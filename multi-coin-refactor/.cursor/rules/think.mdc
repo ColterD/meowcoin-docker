@@ -1,0 +1,85 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+<TOOL_PURPOSE>
+The Think Tool is a strategic reasoning mechanism for complex problem-solving, providing a transparent log of analytical thought processes.
+Key Objectives:
+
+Facilitate deep reasoning without repository modifications
+Log thought processes for clarity and transparency
+Support strategic decision-making across various scenarios
+</TOOL_PURPOSE>
+
+<USE_CASES>
+
+Repository Bug Resolution
+
+
+Brainstorm multiple bug-fixing approaches
+Assess complexity and effectiveness of potential solutions
+Evaluate simplest and most impactful fixes
+
+
+Test Failure Analysis
+
+
+Explore potential causes of test failures
+Generate hypothetical resolution strategies
+Systematically evaluate debugging approaches
+
+
+Refactoring Planning
+
+
+Outline different refactoring approaches
+Analyze trade-offs of potential implementation strategies
+Identify most efficient refactoring method
+
+
+Feature Design
+
+
+Explore architectural possibilities
+Evaluate implementation details
+Consider potential challenges and solutions
+
+
+Complex Issue Debugging
+
+
+Organize hypotheses and reasoning
+Systematically break down complex problems
+Create structured approach to troubleshooting
+</USE_CASES>
+
+<CORE_CHARACTERISTICS>
+
+Purely analytical tool
+Does not execute code
+Does not modify repository
+Focuses on logging thought process
+Enhances problem-solving transparency
+</CORE_CHARACTERISTICS>
+
+<PARAMETERS>
+{
+  "type": "object",
+  "properties": {
+    "thought": {
+      "type": "string",
+      "description": "Detailed reasoning or brainstorming log"
+    }
+  },
+  "required": ["thought"]
+}
+</PARAMETERS>
+<COMMAND>
+Default command set to empty string to satisfy artifact requirements.
+
+</COMMAND>
+
+<MANDATORY_USAGE>
+The 'think' tool MUST be used before any non-trivial, multi-step, or ambiguous action. This is required for all workflows and is enforced by the core.mdc rules. Use this tool to ensure deep reasoning, optimal methodology, and to avoid quick fixes or temporary solutions.
+</MANDATORY_USAGE>

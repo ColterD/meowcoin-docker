@@ -1,0 +1,17 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Instruct the AI to continue tasks without pausing for confirmation.
+alwaysApply: true
+---
+
+- Continue processing tasks without stopping to ask for user confirmation.
+- Only pause if an explicit error occurs or if user input is required to proceed.
+- Do not seek approval after each step; proceed through the entire task sequence.
+- Batch and chain actions wherever possible, executing multi-step workflows in a single sequence.
+- Never pause for user input except for true blockers or ambiguities that cannot be resolved automatically.
+- Every action must be long-term, production-ready, and never a quick fix or temporary solution.
+

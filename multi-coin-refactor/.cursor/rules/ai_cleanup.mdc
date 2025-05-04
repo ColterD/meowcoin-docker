@@ -1,0 +1,22 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+<TOOL_PURPOSE>
+AI-internal rule for autonomous cleanup, refactoring, and self-optimization of the rule set and workspace.
+</TOOL_PURPOSE>
+
+<AI_CLEANUP_PROTOCOL>
+- Regularly review all rule files for redundancy, obsolescence, or ambiguity.
+- Refactor, rename, or consolidate rules for maximal AI-centric clarity and efficiency.
+- Remove deprecated or unused rules.
+- Update the INDEX.md and AI_AGENT_ROADMAP.md with all changes.
+- Propose new rules or meta-structures as needed for evolving AI workflows.
+- Operate this cleanup autonomously, without user prompting, as part of every major workflow or after significant rule changes.
+- Log all cleanup actions in the roadmap Query Log and Change Log.
+</AI_CLEANUP_PROTOCOL>
+
+<MANDATORY>
+This rule is always active and takes precedence over user-facing organization or naming. All rules must be maximally AI-understandable and optimized for autonomous operation.
+</MANDATORY>

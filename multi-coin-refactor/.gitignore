@@ -1,0 +1,46 @@
+# Node.js/TypeScript/Monorepo Best Practices (2025)
+# See AI_AGENT_ROADMAP.md for rationale and updates
+
+# Dependency directories
+node_modules/
+dist/
+build/
+
+# Environment and config
+.env
+.env.*
+
+# Test and coverage
+coverage/
+test-results/
+.nyc_output/
+
+# Debug and screenshots
+debug-*.png
+*.log
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# IDE and editor
+.idea/
+.vscode/
+.husky/_/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Framework/tool caches
+.turbo/
+.next/
+.cache/
+.parcel-cache/
+.swc/
+.vercel/
+
+# Lint/cache
+.eslintcache
+
+# Misc
+*.tgz 

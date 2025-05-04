@@ -1,0 +1,162 @@
+---
+description: This tool enables interaction with a browser using Python code, specifically designed for webpage interaction tasks.
+globs: 
+alwaysApply: false
+---
+<TOOL_PURPOSE>
+This tool enables interaction with a browser using Python code, specifically designed for webpage interaction tasks.
+</TOOL_PURPOSE>
+
+<AVAILABLE_FUNCTIONS>
+    <FUNCTION>
+        <NAME>goto(url: str)</NAME>
+        <DESCRIPTION>Navigate to a URL.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>goto('http://www.example.com')</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>go_back()</NAME>
+        <DESCRIPTION>Navigate to the previous page in history.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>go_back()</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>go_forward()</NAME>
+        <DESCRIPTION>Navigate to the next page in history.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>go_forward()</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>noop(wait_ms: float = 1000)</NAME>
+        <DESCRIPTION>Do nothing, and optionally wait for the given time (in milliseconds). You can use this to get the current page content and/or wait for the page to load.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>noop()</EXAMPLE>
+            <EXAMPLE>noop(500)</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>scroll(delta_x: float, delta_y: float)</NAME>
+        <DESCRIPTION>Scroll horizontally and vertically. Amounts in pixels, positive for right or down scrolling, negative for left or up scrolling. Dispatches a wheel event.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>scroll(0, 200)</EXAMPLE>
+            <EXAMPLE>scroll(-50.2, -100.5)</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>fill(bid: str, value: str)</NAME>
+        <DESCRIPTION>Fill out a form field. It focuses the element and triggers an input event with the entered text. It works for &lt;input&gt;, &lt;textarea&gt; and [contenteditable] elements.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>fill('237', 'example value')</EXAMPLE>
+            <EXAMPLE>fill('45', 'multi-line\nexample')</EXAMPLE>
+            <EXAMPLE>fill('a12', 'example with "quotes"')</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>select_option(bid: str, options: str | list[str])</NAME>
+        <DESCRIPTION>Select one or multiple options in a &lt;select&gt; element. You can specify option value or label to select. Multiple options can be selected.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>select_option('a48', 'blue')</EXAMPLE>
+            <EXAMPLE>select_option('c48', ['red', 'green', 'blue'])</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>click(bid: str, button: Literal['left', 'middle', 'right'] = 'left', modifiers: list[typing.Literal['Alt', 'Control', 'ControlOrMeta', 'Meta', 'Shift']] = [])</NAME>
+        <DESCRIPTION>Click an element.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>click('a51')</EXAMPLE>
+            <EXAMPLE>click('b22', button='right')</EXAMPLE>
+            <EXAMPLE>click('48', button='middle', modifiers=['Shift'])</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>dblclick(bid: str, button: Literal['left', 'middle', 'right'] = 'left', modifiers: list[typing.Literal['Alt', 'Control', 'ControlOrMeta', 'Meta', 'Shift']] = [])</NAME>
+        <DESCRIPTION>Double click an element.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>dblclick('12')</EXAMPLE>
+            <EXAMPLE>dblclick('ca42', button='right')</EXAMPLE>
+            <EXAMPLE>dblclick('178', button='middle', modifiers=['Shift'])</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>hover(bid: str)</NAME>
+        <DESCRIPTION>Hover over an element.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>hover('b8')</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>press(bid: str, key_comb: str)</NAME>
+        <DESCRIPTION>Focus the matching element and press a combination of keys. It accepts the logical key names that are emitted in the keyboardEvent.key property of the keyboard events: Backquote, Minus, Equal, Backslash, Backspace, Tab, Delete, Escape, ArrowDown, End, Enter, Home, Insert, PageDown, PageUp, ArrowRight, ArrowUp, F1 - F12, Digit0 - Digit9, KeyA - KeyZ, etc. You can alternatively specify a single character you'd like to produce such as "a" or "#". Following modification shortcuts are also supported: Shift, Control, Alt, Meta, ShiftLeft, ControlOrMeta. ControlOrMeta resolves to Control on Windows and Linux and to Meta on macOS.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>press('88', 'Backspace')</EXAMPLE>
+            <EXAMPLE>press('a26', 'ControlOrMeta+a')</EXAMPLE>
+            <EXAMPLE>press('a61', 'Meta+Shift+t')</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>focus(bid: str)</NAME>
+        <DESCRIPTION>Focus the matching element.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>focus('b455')</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>clear(bid: str)</NAME>
+        <DESCRIPTION>Clear the input field.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>clear('996')</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>drag_and_drop(from_bid: str, to_bid: str)</NAME>
+        <DESCRIPTION>Perform a drag &amp; drop. Hover the element that will be dragged. Press left mouse button. Move mouse to the element that will receive the drop. Release left mouse button.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>drag_and_drop('56', '498')</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+
+    <FUNCTION>
+        <NAME>upload_file(bid: str, file: str | list[str])</NAME>
+        <DESCRIPTION>Click an element and wait for a "filechooser" event, then select one or multiple input files for upload. Relative file paths are resolved relative to the current working directory. An empty list clears the selected files.</DESCRIPTION>
+        <EXAMPLES>
+            <EXAMPLE>upload_file('572', '/home/user/my_receipt.pdf')</EXAMPLE>
+            <EXAMPLE>upload_file('63', ['/home/bob/Documents/image.jpg', '/home/bob/Documents/file.zip'])</EXAMPLE>
+        </EXAMPLES>
+    </FUNCTION>
+</AVAILABLE_FUNCTIONS>
+
+<VIEWING_FILES>
+    <DESCRIPTION>You can use the browser to view PDF, PNG, JPG files.</DESCRIPTION>
+    <INSTRUCTIONS>
+        <STEP>Check the content of /tmp/oh-server-url to get the server URL</STEP>
+        <STEP>Use it to view the file by `goto("{server_url}/view?path={absolute_file_path}")`</STEP>
+        <EXAMPLE>goto("http://localhost:8000/view?path=/workspace/test_document.pdf")</EXAMPLE>
+    </INSTRUCTIONS>
+    <NOTE>The file should be downloaded to the local machine first before using the browser to view it.</NOTE>
+</VIEWING_FILES>
+
+<USAGE_GUIDELINES>
+    <NOTE>Use this tool ONLY when you need to interact with a webpage.</NOTE>
+    <NOTE>Multiple actions can be provided at once, but will be executed sequentially without any feedback from the page.</NOTE>
+    <WARNING>More than 2-3 actions usually leads to failure or unexpected behavior.</WARNING>
+</USAGE_GUIDELINES>
+
+<MODERN_WEB_BEST_PRACTICES>
+Always use the latest web best practices (as of May 2025) for all browser interactions. Reference MCP servers and web search for every web automation. Never implement quick fixes or temporary browser automations; all solutions must be robust and production-ready.
+</MODERN_WEB_BEST_PRACTICES>

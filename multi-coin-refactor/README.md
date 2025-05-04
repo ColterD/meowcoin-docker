@@ -161,4 +161,17 @@ Both PowerShell and WSL environments can run install, lint, and test, but curren
 These issues are cross-platform and not specific to WSL or PowerShell. See [AI_AGENT_ROADMAP.md](AI_AGENT_ROADMAP.md#test-results--validation-log) for detailed logs and next steps. This troubleshooting task is now fully complete and all documentation is up to date. Task is finished as per roadmap and finish rule requirements. All file existence and accessibility checks for documentation and roadmap files have been completed and confirmed.
 
 ## All tests passing (2025-06-10)
-As of the latest update, all test suites pass after registry, onboarding simulation, and authentication middleware fixes. The codebase is robust and cross-platform. See [AI_AGENT_ROADMAP.md](AI_AGENT_ROADMAP.md#test-results--validation-log) for details. 
+As of the latest update, all test suites pass after registry, onboarding simulation, and authentication middleware fixes. The codebase is robust and cross-platform. See [AI_AGENT_ROADMAP.md](AI_AGENT_ROADMAP.md#test-results--validation-log) for details.
+
+## Onboarding Wizard: Manual & E2E Testing
+
+- **Browser Onboarding (Express server):**
+  - Start server: `npm run onboarding:browser`
+  - Access at: http://localhost:3000/onboarding
+  - Requirements: onboarding UI available, Playwright for E2E automation
+
+- **TUI Onboarding (CLI):**
+  - Start CLI: `npm run onboarding:tui`
+  - Requirements: TUI wizard supports injectable/mockable input, Jest for E2E automation
+
+See [docs/ONBOARDING.md](docs/ONBOARDING.md) for full details and troubleshooting. 

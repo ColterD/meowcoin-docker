@@ -1,0 +1,43 @@
+---
+description: Read and convert webpage content to markdown, prioritizing text extraction while managing different web content scenarios.
+globs: 
+alwaysApply: false
+---
+<TOOL_PURPOSE>
+Read and convert webpage content to markdown, prioritizing text extraction while managing different web content scenarios.
+</TOOL_PURPOSE>
+
+<USAGE_GUIDELINES>
+Prefer web_read tool for text content
+Use browser tool for:
+
+Interactive webpage elements
+Pages with images
+
+Supports Google search query URLs
+</USAGE_GUIDELINES>
+
+<TOOL_PREFERENCES>
+Prioritize text extraction
+Convert content to markdown
+Handle various webpage types
+</TOOL_PREFERENCES>
+
+<PARAMETERS>
+{
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "Webpage URL or Google search query"
+    }
+  },
+  "required": ["url"]
+}
+</PARAMETERS>
+
+<COMMAND>
+Default command set to empty string to satisfy artifact requirements.
+
+
+</COMMAND>

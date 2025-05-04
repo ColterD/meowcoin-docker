@@ -1,0 +1,33 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# .cursor/rules Index
+
+This file lists all rule files, their purposes, and highlights the mandatory requirements for all workflows as of May 2025.
+
+## Rule Files
+
+- **core.mdc**: Foundational rules for all agent actions. Now explicitly prohibits quick fixes, mandates long-term, production-ready solutions, requires documentation and AI_AGENT_ROADMAP.md updates, and enforces use of MCP/web and 'think' tool.
+- **continue_working.mdc**: Requires batching, chaining, and multi-step workflows. Never pause except for true blockers. All actions must be production-ready.
+- **think.mdc**: The 'think' tool must be used before any non-trivial, multi-step, or ambiguous action. Ensures deep reasoning and optimal methodology.
+- **str_replace_editor.mdc**: File editing tool. Never use for quick fixes or temporary edits. All changes must be robust and production-ready.
+- **browser.mdc**: All browser automations must use modern best practices (as of May 2025), reference MCP/web, and never be quick fixes.
+- **web_read.mdc**: For extracting text from web pages. Use as part of best-practice, production-ready workflows.
+- **execute_bash.mdc**: Bash command execution. Use for robust, maintainable automation only.
+- **execute_ipython_cell.mdc**: For running Python code in an IPython environment. Use for robust, maintainable automation only.
+
+## AI-Internal/Meta Rules
+
+- **ai_cleanup.mdc**: Autonomous cleanup, refactoring, and self-optimization protocols. Enables the AI to maintain, refactor, and optimize its own rule set and workspace without user prompting. Ensures deprecated, obsolete, or redundant rules are removed or updated, and that all rules remain maximally AI-understandable and efficient. This rule is always active and enforced.
+
+## Mandatory Requirements (May 2025)
+
+- **No quick fixes, hacks, or temporary solutions.**
+- **Every response must update documentation and the AI_AGENT_ROADMAP.md (Query Log, Change Log, Test Results & Validation Log) as appropriate.**
+- **Always use available MCP servers and web search for best practices and up-to-date solutions.**
+- **Always use the 'think' tool before any non-trivial action.**
+- **Reference the AI_AGENT_ROADMAP.md for all workflows and decisions.**
+
+For details, see [AI_AGENT_ROADMAP.md](../AI_AGENT_ROADMAP.md). 
