@@ -2,18 +2,25 @@ console.log('Starting server...');
 // Minimal Express server for browser onboarding E2E automation
 import express from 'express';
 import bodyParser from 'body-parser';
+import cors from 'cors';
 import { simulateOnboarding } from '../wizards/browser/index';
 import { submitFeedbackBrowser } from '../wizards/browser/onboarding';
 
 console.log('Imports complete.');
 
 const app: any = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 12000; // Use the runtime port
+const HOST = '0.0.0.0'; // Allow connections from any host
 
 console.log('Express app created.');
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cors({
+  origin: '*', // Allow all origins
+  methods: ['GET', 'POST'], // Allow only GET and POST methods
+  allowedHeaders: ['Content-Type', 'Authorization'] // Allow these headers
+}));
 
 console.log('Middleware registered.');
 
@@ -86,7 +93,7 @@ app.post('/onboarding', (req: any, res: any) => {
   try {
     const { coin, config } = req.body;
     // Coerce types for config fields
-    let coercedConfig = { ...config };
+    const coercedConfig = { ...config };
     if (typeof coercedConfig.enabled === 'string') {
       coercedConfig.enabled = coercedConfig.enabled === 'true' || coercedConfig.enabled === true;
     }
@@ -118,7 +125,8 @@ app.post('/feedback', (req: any, res: any) => {
 });
 
 console.log('About to call app.listen...');
-app.listen(PORT, () => {
+app.listen(PORT, HOST, () => {
   console.log('Inside app.listen callback.');
-  console.log(`Browser onboarding server running at http://localhost:${PORT}/onboarding`);
+  console.log(`Browser onboarding server running at http://${HOST}:${PORT}/onboarding`);
+  console.log('Access via: https://work-1-rpekkbutozogdpsa.prod-runtime.all-hands.dev/onboarding');
 }); 

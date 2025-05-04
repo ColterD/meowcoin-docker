@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Multi-Coin Blockchain Platform - Configure and manage your cryptocurrency nodes">
+  <meta name="theme-color" content="#3498db">
+  <title>Multi-Coin Blockchain Platform</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="/favicon.ico">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <!-- Accessibility -->
+  <a href="#main-content" class="skip-to-content">Skip to content</a>
+  <div id="theme-announcement" class="sr-only" aria-live="polite"></div>
+  <div id="tab-announcement" class="sr-only" aria-live="polite"></div>
+  
+  <div class="container">
+    <header class="pt-6 pb-4">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Multi-Coin Blockchain Platform</h1>
+        
+        <div class="d-flex align-items-center">
+          <span id="theme-label" class="mr-2">Dark Mode</span>
+          <label class="toggle-switch" for="theme-toggle">
+            <input type="checkbox" id="theme-toggle" aria-labelledby="theme-label">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="onboarding" role="tab" aria-selected="true" aria-controls="onboarding-tab" id="tab-onboarding">
+          Onboarding
+        </button>
+        <button class="tab" data-tab="feedback" role="tab" aria-selected="false" aria-controls="feedback-tab" id="tab-feedback">
+          Feedback
+        </button>
+      </div>
+    </header>
+    
+    <main id="main-content">
+      <div id="onboarding-tab" class="tab-content active" role="tabpanel" aria-labelledby="tab-onboarding">
+        <div class="card animate-fade-in">
+          <h2>Coin Configuration</h2>
+          <form id="onboarding-form" novalidate>
+            <div class="form-group">
+              <label for="coin">Coin:</label>
+              <select id="coin" name="coin" required aria-required="true">
+                <option value="">Select a coin</option>
+                <option value="BTC">Bitcoin (BTC)</option>
+                <option value="MEWC">MeowCoin (MEWC)</option>
+              </select>
+              <span class="form-hint">Choose the cryptocurrency you want to configure</span>
+            </div>
+            
+            <div class="form-group">
+              <label for="rpcUrl">RPC URL:</label>
+              <input type="url" id="rpcUrl" name="rpcUrl" placeholder="http://localhost:8332" required aria-required="true">
+              <span class="form-hint">The URL for your node's RPC endpoint</span>
+            </div>
+            
+            <div class="form-group">
+              <label for="network">Network:</label>
+              <select id="network" name="network" required aria-required="true">
+                <option value="mainnet">Mainnet</option>
+                <option value="testnet">Testnet</option>
+                <option value="regtest">Regtest</option>
+              </select>
+              <span class="form-hint">The blockchain network to connect to</span>
+            </div>
+            
+            <div class="form-group">
+              <label class="d-flex align-items-center">
+                <input type="checkbox" id="enabled" name="enabled" checked>
+                <span class="ml-2">Enable this coin</span>
+              </label>
+              <span class="form-hint">Disable to temporarily stop using this coin</span>
+            </div>
+            
+            <button type="button" id="advanced-toggle" class="btn btn-sm btn-outline mb-4" aria-expanded="false" aria-controls="advanced-fields">
+              ▶ Advanced Options
+            </button>
+            
+            <div id="advanced-fields" class="bg-surface-variant p-4 rounded mb-4">
+              <div class="form-group">
+                <label for="minConfirmations">Minimum Confirmations:</label>
+                <input type="number" id="minConfirmations" name="minConfirmations" value="1" min="0">
+                <span class="form-hint">Minimum confirmations required for transactions</span>
+              </div>
+              
+              <div class="form-group mb-0">
+                <label for="timeout">Timeout (ms):</label>
+                <input type="number" id="timeout" name="timeout" value="30000" min="1000">
+                <span class="form-hint">RPC request timeout in milliseconds</span>
+              </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Save Configuration</button>
+          </form>
+          
+          <div id="onboarding-result" class="result mt-4" aria-live="polite"></div>
+        </div>
+      </div>
+      
+      <div id="feedback-tab" class="tab-content" role="tabpanel" aria-labelledby="tab-feedback">
+        <div class="card animate-fade-in">
+          <h2>Submit Feedback</h2>
+          <p>We value your input! Please share your thoughts, suggestions, or report any issues you've encountered.</p>
+          
+          <form id="feedback-form" novalidate>
+            <div class="form-group">
+              <label for="feedback">Your Feedback:</label>
+              <textarea id="feedback" name="feedback" rows="4" required aria-required="true" placeholder="Tell us what you think..."></textarea>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Submit Feedback</button>
+          </form>
+          
+          <div id="feedback-result" class="result mt-4" aria-live="polite"></div>
+        </div>
+      </div>
+    </main>
+    
+    <footer class="mt-8 pt-4 pb-6 text-center">
+      <p class="text-secondary">
+        &copy; 2025 Multi-Coin Blockchain Platform | 
+        <a href="#" class="text-secondary">Privacy Policy</a> | 
+        <a href="#" class="text-secondary">Terms of Service</a>
+      </p>
+    </footer>
+  </div>
+  
+  <script src="/app.js"></script>
+</body>
+</html>

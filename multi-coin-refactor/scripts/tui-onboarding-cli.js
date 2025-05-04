@@ -1,8 +1,27 @@
 #!/usr/bin/env node
 // Minimal CLI for TUI onboarding E2E automation
 const readline = require('readline');
-const { simulateOnboarding } = require('../wizards/tui/index');
-const { submitFeedbackTui } = require('../wizards/tui/onboarding');
+
+// Try to load from dist/ first (compiled version)
+let simulateOnboarding, submitFeedbackTui;
+try {
+  ({ simulateOnboarding } = require('../dist/wizards/tui/index'));
+  ({ submitFeedbackTui } = require('../dist/wizards/tui/onboarding'));
+  console.log('Loaded TUI wizard from dist/');
+} catch (e) {
+  console.error('Failed to load from dist/, trying source version with ts-node:', e);
+  try {
+    // Fall back to source version with ts-node
+    require('ts-node/register');
+    ({ simulateOnboarding } = require('../wizards/tui/index.ts'));
+    ({ submitFeedbackTui } = require('../wizards/tui/onboarding.ts'));
+    console.log('Loaded TUI wizard from source with ts-node');
+  } catch (e2) {
+    console.error('Failed to start TUI wizard:', e2);
+    console.log('Please make sure you have run `npm install` and `npx tsc` first.');
+    process.exit(1);
+  }
+}
 
 const rl = readline.createInterface({
   input: process.stdin,

@@ -1,60 +1,55 @@
+#!/usr/bin/env node
 // Minimal Express server for browser onboarding E2E automation
-const express = require('express');
-const path = require('path');
-const bodyParser = require('body-parser');
-const { simulateOnboarding } = require('../wizards/browser/index');
+
+// Try to load from dist/ first (compiled version)
+let express, path, bodyParser, simulateOnboarding, submitFeedbackBrowser;
+
+try {
+  express = require('express');
+  path = require('path');
+  bodyParser = require('body-parser');
+  ({ simulateOnboarding } = require('../dist/wizards/browser/index'));
+  ({ submitFeedbackBrowser } = require('../dist/wizards/browser/onboarding'));
+  console.log('Loaded browser server modules from dist/');
+} catch (e) {
+  console.error('Failed to load from dist/, trying source version with ts-node:', e);
+  try {
+    // Fall back to source version with ts-node
+    express = require('express');
+    path = require('path');
+    bodyParser = require('body-parser');
+    require('ts-node/register');
+    ({ simulateOnboarding } = require('../wizards/browser/index.ts'));
+    ({ submitFeedbackBrowser } = require('../wizards/browser/onboarding.ts'));
+    console.log('Loaded browser server modules from source with ts-node');
+  } catch (e2) {
+    console.error('Failed to start browser server:', e2);
+    console.log('Please make sure you have run `npm install` and `npx tsc` first.');
+    process.exit(1);
+  }
+}
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 12000; // Use the runtime port
+const HOST = '0.0.0.0'; // Allow connections from any host
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Add CORS support
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  next();
+});
+
+// Serve static files from public directory
+app.use(express.static(path.join(process.cwd(), 'public')));
+
 // Serve static HTML onboarding form
 app.get('/onboarding', (req, res) => {
-  res.send(`
-    <html>
-      <head><title>Onboarding</title></head>
-      <body>
-        <h1>Onboarding</h1>
-        <form method="POST" action="/onboarding" id="onboarding-form">
-          <label>Coin: <input name="coin" required /></label><br/>
-          <label>Config Foo: <input name="foo" required /></label><br/>
-          <button type="submit">Submit</button>
-        </form>
-        <form method="POST" action="/feedback" id="feedback-form">
-          <label>Feedback: <input name="feedback" required /></label><br/>
-          <button type="submit">Submit Feedback</button>
-        </form>
-        <div id="result"></div>
-        <script>
-          document.getElementById('onboarding-form').onsubmit = async function(e) {
-            e.preventDefault();
-            const coin = this.coin.value;
-            const foo = this.foo.value;
-            const res = await fetch('/onboarding', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ coin, config: { foo } })
-            });
-            const data = await res.json();
-            document.getElementById('result').innerText = data.success ? 'Onboarding complete' : 'Error: ' + (data.error || 'Unknown');
-          };
-          document.getElementById('feedback-form').onsubmit = async function(e) {
-            e.preventDefault();
-            const feedback = this.feedback.value;
-            const res = await fetch('/feedback', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ feedback, user: { authenticated: true, id: 'e2e-user' } })
-            });
-            const data = await res.json();
-            document.getElementById('result').innerText = data.success ? 'Thank you for your feedback' : 'Error: ' + (data.error || 'Unknown');
-          };
-        </script>
-      </body>
-    </html>
-  `);
+  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
 });
 
 // Handle onboarding POST
@@ -73,8 +68,7 @@ app.post('/onboarding', (req, res) => {
 app.post('/feedback', (req, res) => {
   try {
     const { feedback, user } = req.body;
-    // Use the submitFeedbackBrowser function from onboarding module
-    const { submitFeedbackBrowser } = require('../wizards/browser/onboarding');
+    // submitFeedbackBrowser is already imported at the top
     submitFeedbackBrowser(feedback, user);
     return res.json({ success: true });
   } catch (e) {
@@ -82,6 +76,7 @@ app.post('/feedback', (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Browser onboarding server running at http://localhost:${PORT}/onboarding`);
+app.listen(PORT, HOST, () => {
+  console.log(`Browser onboarding server running at http://${HOST}:${PORT}/onboarding`);
+  console.log('Access via: https://work-1-rpekkbutozogdpsa.prod-runtime.all-hands.dev/onboarding');
 }); 

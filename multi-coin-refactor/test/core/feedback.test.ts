@@ -15,8 +15,16 @@ import { existsSync, unlinkSync, writeFileSync } from 'fs';
 import * as path from 'path';
 const FEEDBACK_PATH = path.resolve(process.cwd(), 'core/feedback/feedbacks.json');
 describe('Feedback Management', () => {
+  const originalEnv = process.env.FEEDBACK_PERSISTENCE;
+  
   beforeEach(() => {
+    process.env.FEEDBACK_PERSISTENCE = 'file';
+    if (existsSync(FEEDBACK_PATH)) unlinkSync(FEEDBACK_PATH);
     clearFeedbacks();
+  });
+  
+  afterAll(() => {
+    process.env.FEEDBACK_PERSISTENCE = originalEnv;
   });
   it('should submit and retrieve feedback', async () => {
     const feedback = { userId: 'u1', feedback: 'Great!', createdAt: new Date().toISOString(), context: 'test' };
@@ -46,9 +54,16 @@ describe('Feedback Management', () => {
   // TODO[roadmap]: Add tests for unauthenticated/malformed feedback and error cases. See core/feedback/index.ts, scripts/bulk-edit-examples.md
 });
 describe('Feedback Persistence', () => {
+  const originalEnv = process.env.FEEDBACK_PERSISTENCE;
+  
   beforeEach(() => {
+    process.env.FEEDBACK_PERSISTENCE = 'file';
     if (existsSync(FEEDBACK_PATH)) unlinkSync(FEEDBACK_PATH);
     clearFeedbacks();
+  });
+  
+  afterAll(() => {
+    process.env.FEEDBACK_PERSISTENCE = originalEnv;
   });
   it('should persist feedback to file and load it', async () => {
     const feedback = { userId: 'persist', feedback: 'persisted', createdAt: new Date().toISOString() };

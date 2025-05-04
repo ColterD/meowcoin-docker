@@ -1,50 +1,228 @@
-// #region Onboarding Guide
-/**
- * # Onboarding Guide
- * For new agents and users: setup, config, onboarding flows, troubleshooting, and links.
- * Includes advanced E2E and integration test references.
- * Logs onboarding events to monitoring/metrics and integrates with feedback module.
- * TODO[roadmap]: Expand with onboarding feedback, rollback, and advanced E2E flows.
- */
+# Onboarding Guide
+
+This guide provides comprehensive instructions for setting up, configuring, and using the Multi-Coin Blockchain Platform's onboarding system. It covers both browser-based and terminal-based onboarding flows, as well as testing, troubleshooting, and advanced features.
+
+## Table of Contents
+- [Quickstart](#quickstart)
+- [Onboarding Flows](#onboarding-flows)
+  - [Browser-Based Onboarding](#browser-based-onboarding)
+  - [Terminal-Based Onboarding](#terminal-based-onboarding)
+- [Configuration Options](#configuration-options)
+- [Persistence and Storage](#persistence-and-storage)
+- [Monitoring and Feedback](#monitoring-and-feedback)
+- [Security and Secrets Management](#security-and-secrets-management)
+- [Automated Testing](#automated-testing)
+- [Troubleshooting](#troubleshooting)
+- [FAQ](#faq--troubleshooting)
+- [Cross-links](#cross-links)
 
 ## Quickstart
-- Clone repo, install dependencies, run tests.
-- See [README.md](../README.md) for environment and config setup.
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-org/multi-coin-refactor.git
+   cd multi-coin-refactor
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Build the TypeScript code:
+   ```bash
+   npm run build
+   ```
+
+4. Start the browser onboarding wizard:
+   ```bash
+   npm run onboarding:browser
+   ```
+   Then visit: http://localhost:12000/onboarding
+
+5. Or start the TUI onboarding wizard:
+   ```bash
+   npm run onboarding:tui
+   ```
+
+See [README.md](../README.md) for more detailed environment and configuration setup.
 
 ## Onboarding Flows
-- Use browser or TUI wizard to onboard a new coin or user.
-- Config is persisted (see core/onboarding/configStore.ts). Now supports advanced onboarding fields (multi-sig, custom, advancedOption, etc.), persistent storage (file/DB-backed, feature-flagged), and pluggable async storage adapters (in-memory, file, DB). See core/types/index.ts for StorageAdapter interface. All onboarding/feedback storage is now async and feature-flagged.
-- See core/config/index.ts for all schemas. Feature-flag persistent onboarding with ONBOARDING_PERSISTENCE=file.
-- Onboarding events are logged to monitoring/metrics (see core/monitoring/).
-- Feedback is persisted to core/feedback/feedbacks.json and validated (see core/feedback/index.ts).
-- All feedback is logged to monitoring/metrics (see core/monitoring/).
-- Secrets used during onboarding are managed and audited (see core/secrets/index.ts).
-- Supports rollback and recovery for failed onboarding (see E2E tests).
-- See E2E tests in [test/e2e/onboardingBrowser.e2e.ts](../test/e2e/onboardingBrowser.e2e.ts) and [test/e2e/onboardingTui.e2e.ts](../test/e2e/onboardingTui.e2e.ts) for advanced scenarios (multi-coin, rollback, feedback loop).
-- See scripts/bulk-edit-examples.md for bulk edit and rollback best practices.
-- TODO[roadmap]: Integrate persistent DB storage for onboarding and feedback. Document migration and async usage.
 
-## Automated E2E Test Scaffolds (2025-06-10)
+The platform supports two main onboarding flows:
 
-- **Browser Onboarding (Playwright):**
-  - A robust, production-ready Playwright E2E test is scaffolded in `test/e2e/onboardingBrowser.e2e.ts` (see 'Playwright E2E: Real Browser Onboarding & Feedback').
-  - Skipped by default. Enable when the onboarding UI is available at `http://localhost:3000/onboarding`.
-  - To run: `npx playwright test test/e2e/onboardingBrowser.e2e.ts`
-  - Requirements: Playwright installed, onboarding app running, selectors updated to match UI.
-  - See comments and TODOs in the test for further customization.
+### Browser-Based Onboarding
 
-- **TUI Onboarding (Jest/Mocking):**
-  - A robust, production-ready Jest-based E2E test is scaffolded in `test/e2e/onboardingTui.e2e.ts` (see 'Jest E2E: Real TUI Onboarding & Feedback').
-  - Skipped by default. Enable when the TUI wizard supports injectable/mockable input.
-  - To run: `npm test -- --testPathPattern=test/e2e/onboardingTui.e2e.ts`
-  - Requirements: TUI wizard supports input mocking, selectors updated to match wizard.
-  - See comments and TODOs in the test for further customization.
+The browser-based onboarding provides a user-friendly web interface for configuring coins and submitting feedback.
 
-These scaffolds are production-ready and provide a foundation for robust, automated onboarding E2E flows. See also the new `playwright.config.ts` for Playwright configuration.
+**Features:**
+- Intuitive form-based interface
+- Real-time validation
+- Configuration persistence in localStorage
+- Server-side validation and storage
+- Feedback submission
+- Advanced configuration options
+- Tabbed interface for easy navigation
+
+**Usage:**
+1. Start the server: `npm run onboarding:browser`
+2. Open http://localhost:12000/onboarding in your browser
+3. Select a coin from the dropdown
+4. Fill in the required configuration fields
+5. (Optional) Expand "Advanced Options" for additional settings
+6. Click "Save Configuration"
+7. Switch to the "Feedback" tab to submit feedback
+
+**Implementation Details:**
+- Frontend: HTML, CSS, JavaScript with localStorage persistence
+- Backend: Express server with validation and persistence
+- See `scripts/browser-onboarding-server.js` for the server implementation
+- See `wizards/browser/onboarding.ts` for the core functionality
+
+### Terminal-Based Onboarding
+
+The TUI (Terminal User Interface) onboarding provides a command-line interface for configuring coins and submitting feedback.
+
+**Features:**
+- Lightweight command-line interface
+- Step-by-step guided configuration
+- File-based persistence
+- Validation and error handling
+- Feedback submission
+
+**Usage:**
+1. Start the TUI wizard: `npm run onboarding:tui`
+2. Follow the prompts to select a coin and configure it
+3. Provide feedback when prompted
+
+**Implementation Details:**
+- Node.js readline interface
+- File-based persistence
+- See `scripts/tui-onboarding-cli.js` for the CLI implementation
+- See `wizards/tui/onboarding.ts` for the core functionality
+
+## Configuration Options
+
+The platform supports a variety of configuration options for each coin:
+
+### Common Configuration Fields
+
+| Field | Description | Type | Default | Required |
+|-------|-------------|------|---------|----------|
+| `rpcUrl` | URL for the coin's RPC endpoint | String | - | Yes |
+| `network` | Network type (mainnet, testnet, regtest) | String | mainnet | Yes |
+| `enabled` | Whether the coin is enabled | Boolean | true | Yes |
+| `minConfirmations` | Minimum confirmations required | Number | 1 | No |
+| `timeout` | RPC timeout in milliseconds | Number | 30000 | No |
+
+### Coin-Specific Configuration
+
+Each coin may have additional specific configuration options. For example:
+
+**Bitcoin (BTC):**
+- `feeRate`: Fee rate in satoshis per byte
+- `addressType`: Address type (legacy, segwit, bech32)
+
+**MeowCoin (MEWC):**
+- `miningEnabled`: Whether mining is enabled
+- `miningThreads`: Number of mining threads
+
+### Advanced Configuration
+
+Advanced configuration options are available for each coin and can be accessed by expanding the "Advanced Options" section in the browser interface or by responding to additional prompts in the TUI.
+
+## Persistence and Storage
+
+The platform supports multiple persistence mechanisms for onboarding configurations:
+
+### Browser Storage
+
+- **localStorage**: Configurations are saved to the browser's localStorage for persistence across sessions
+- Implementation: See `wizards/browser/onboarding.ts` for the localStorage implementation
+
+### Server-Side Storage
+
+- **File-based**: Configurations can be saved to JSON files on the server
+- **In-memory**: Configurations can be stored in memory (for testing or development)
+- **Database**: Support for SQLite and other databases is planned
+- Implementation: See `core/onboarding/configStore.ts` for the storage adapters
+
+### Environment Variables
+
+The storage mechanism can be controlled via environment variables:
+
+- `ONBOARDING_PERSISTENCE=file`: Use file-based persistence
+- `ONBOARDING_PERSISTENCE=memory`: Use in-memory persistence (default)
+- `ONBOARDING_PERSISTENCE=db`: Use database persistence (planned)
+
+## Monitoring and Feedback
+
+The platform includes comprehensive monitoring and feedback mechanisms:
+
+### Monitoring
+
+- All onboarding events are logged to the monitoring system
+- Events include: configuration saves, loads, validation errors, and more
+- Implementation: See `core/monitoring/index.ts` for the monitoring implementation
+
+### Feedback
+
+- Users can submit feedback via the browser or TUI interface
+- Feedback is validated and stored
+- Feedback is also logged to the monitoring system
+- Implementation: See `core/feedback/index.ts` for the feedback implementation
+
+## Security and Secrets Management
+
+The platform includes robust security and secrets management:
+
+### Secrets Management
+
+- Secrets (e.g., API keys, passwords) are securely stored and managed
+- Support for rotation, revocation, and auditing
+- Implementation: See `core/secrets/index.ts` for the secrets management implementation
+
+### Authentication
+
+- Basic authentication is supported for the API and onboarding interfaces
+- Implementation: See `core/auth/index.ts` for the authentication implementation
+
+## Automated Testing
+
+The platform includes comprehensive automated testing for onboarding flows:
+
+### Browser Onboarding Tests (Playwright)
+
+- A robust, production-ready Playwright E2E test is scaffolded in `test/e2e/onboardingBrowser.e2e.ts`
+- Tests the complete browser onboarding flow, including form submission and feedback
+- To run: `npx playwright test test/e2e/onboardingBrowser.e2e.ts`
+- Requirements: Playwright installed, onboarding app running
+
+### TUI Onboarding Tests (Jest/Mocking)
+
+- A robust, production-ready Jest-based E2E test is scaffolded in `test/e2e/onboardingTui.e2e.ts`
+- Tests the complete TUI onboarding flow, including input handling and feedback
+- To run: `npm test -- --testPathPattern=test/e2e/onboardingTui.e2e.ts`
+- Requirements: TUI wizard supports input mocking
+
+These tests are production-ready and provide a foundation for robust, automated onboarding E2E flows. See also the `playwright.config.ts` for Playwright configuration.
 
 ## Troubleshooting
-- See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for common issues.
-- For rollback/recovery, see scripts/bulk-edit-examples.md.
+
+Common issues and their solutions:
+
+### Browser Onboarding Issues
+
+- **"Bad Gateway" error**: Ensure the server is running on the correct port (12000) and host (0.0.0.0)
+- **Validation errors**: Check the console for detailed error messages
+- **localStorage errors**: Ensure your browser supports localStorage and has sufficient space
+
+### TUI Onboarding Issues
+
+- **"Module not found" error**: Ensure you've built the TypeScript code with `npm run build`
+- **Input validation errors**: Check the error messages for details on required fields
+
+For more troubleshooting information, see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
 
 ## FAQ / Troubleshooting
 

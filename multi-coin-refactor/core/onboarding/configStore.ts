@@ -62,11 +62,39 @@ class FileOnboardingAdapter implements StorageAdapter<OnboardingConfig> {
   async clear() { if (writeFileSync) writeFileSync(CONFIG_PATH, '[]'); }
 }
 
-// TODO[roadmap]: Add DBOnboardingAdapter for persistent DB-backed storage
+// Import the DB adapter (dynamically to avoid issues in browser environments)
+let DBOnboardingAdapter: any;
+try {
+  ({ DBOnboardingAdapter } = require('./db-adapter'));
+} catch (e) {
+  // DB adapter not available, will fall back to other adapters
+}
 // #endregion
 
 // #region Adapter Selection
-const ADAPTER = (env && env.ONBOARDING_PERSISTENCE === 'file') ? new FileOnboardingAdapter() : new InMemoryOnboardingAdapter();
+// Create a function to get the adapter to ensure we always use the current environment variable value
+function getAdapter(): StorageAdapter<OnboardingConfig> {
+  const persistenceType = env?.ONBOARDING_PERSISTENCE;
+  
+  if (persistenceType === 'file') {
+    return new FileOnboardingAdapter();
+  } else if (persistenceType === 'db') {
+    if (!DBOnboardingAdapter) {
+      console.warn('DB adapter requested but not available, falling back to in-memory');
+      return new InMemoryOnboardingAdapter();
+    }
+    try {
+      return new DBOnboardingAdapter();
+    } catch (error) {
+      console.error('Failed to initialize DB adapter:', error);
+      console.warn('Falling back to in-memory adapter');
+      return new InMemoryOnboardingAdapter();
+    }
+  } else {
+    // Default to in-memory
+    return new InMemoryOnboardingAdapter();
+  }
+}
 // #endregion
 
 export async function saveOnboardingConfig(onboardingConfig: OnboardingConfig) {
@@ -78,15 +106,34 @@ export async function saveOnboardingConfig(onboardingConfig: OnboardingConfig) {
     data: onboardingConfig,
     timestamp: onboardingConfig.createdAt,
   });
-  await ADAPTER.save(onboardingConfig);
+  await getAdapter().save(onboardingConfig);
 }
 
 export async function getOnboardingConfigs(): Promise<OnboardingConfig[]> {
-  return ADAPTER.getAll();
+  return getAdapter().getAll();
 }
 
 export async function clearOnboardingConfigs() {
-  await ADAPTER.clear();
+  await getAdapter().clear();
+}
+
+/**
+ * Get an onboarding configuration by coin.
+ * Only works with DB adapter that implements getByCoin method.
+ * @param coin - The coin symbol
+ * @returns The onboarding configuration or null if not found
+ */
+export async function getOnboardingConfigByCoin(coin: string): Promise<OnboardingConfig | null> {
+  const adapter = getAdapter();
+  
+  // Check if the adapter has a getByCoin method
+  if ('getByCoin' in adapter && typeof (adapter as any).getByCoin === 'function') {
+    return (adapter as any).getByCoin(coin);
+  }
+  
+  // Fall back to filtering all configs
+  const configs = await adapter.getAll();
+  return configs.find(config => config.coin === coin) || null;
 }
 // #endregion 
 

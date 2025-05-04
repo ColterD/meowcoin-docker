@@ -13,14 +13,16 @@ import { AuthUser } from '../../core/auth';
 import * as z from 'zod';
 
 /**
- * Save onboarding config to localStorage (browser).
+ * Save onboarding config to localStorage (browser) and server.
  * @param config - Onboarding config object
  * Supports advanced fields and dynamic schemas.
- * TODO[roadmap]: Add persistent DB-backed storage and advanced onboarding flows.
+ * Implements both localStorage persistence and server-side storage.
  */
 export async function saveConfigBrowser(config: unknown) {
   const onboardingConfig = config as OnboardingConfig;
   const coinSymbol = onboardingConfig.coin;
+  
+  // Validate coin exists and has a config schema
   const coinModule = coinRegistry.get(coinSymbol?.toLowerCase());
   if (!coinModule || !coinModule.configSchema) {
     recordMetric({
@@ -30,6 +32,8 @@ export async function saveConfigBrowser(config: unknown) {
     });
     throw new Error('Unknown coin or missing config schema');
   }
+  
+  // Validate config against coin schema
   const schema = coinModule.configSchema as z.ZodTypeAny;
   const result = schema.safeParse(onboardingConfig.config);
   if (!result.success) {
@@ -40,7 +44,26 @@ export async function saveConfigBrowser(config: unknown) {
     });
     throw new Error('Invalid config');
   }
+  
+  // Save to server via core onboarding service
   await saveOnboardingConfig(onboardingConfig);
+  
+  // Save to localStorage if in browser environment
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.setItem('onboardingConfig', JSON.stringify(onboardingConfig));
+    } catch (error: any) {
+      console.error('Error saving to localStorage:', error);
+      recordMetric({
+        type: 'error',
+        data: { action: 'save', error: error?.message || String(error) },
+        timestamp: new Date().toISOString(),
+      });
+      // Don't throw here - we already saved to server
+    }
+  }
+  
+  // Record metric for successful save
   recordMetric({
     type: 'onboarding',
     data: { action: 'save', config },
@@ -53,14 +76,31 @@ export async function saveConfigBrowser(config: unknown) {
  * @returns Config object or null
  */
 export function loadConfigBrowser() {
-  // TODO[roadmap]: Load config from localStorage. See core/onboarding/configStore.ts, BACKUP_RESTORE.md
-  const data = localStorage.getItem('onboardingConfig');
-  const config = data ? JSON.parse(data) : null;
+  let config = null;
+  
+  // In browser environment
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const data = localStorage.getItem('onboardingConfig');
+      if (data) {
+        config = JSON.parse(data);
+      }
+    } catch (error: any) {
+      console.error('Error loading config from localStorage:', error);
+      recordMetric({
+        type: 'error',
+        data: { action: 'load', error: error?.message || String(error) },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+  
   recordMetric({
     type: 'onboarding',
     data: { action: 'load', config },
     timestamp: new Date().toISOString(),
   });
+  
   return config;
 }
 
