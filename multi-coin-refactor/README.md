@@ -1,70 +1,108 @@
+# Multi-Coin Blockchain Platform
+
 [![CI](https://github.com/your-org/your-repo/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/your-repo/actions/workflows/ci.yml)
-# Multi-Coin Blockchain Platform Refactor
 
-## Overview
-This project is a modular, multi-coin blockchain platform refactor, designed for extensibility, test-driven development, unified config/validation, robust CI/CD, and clear documentation. All work is aligned with the [AI_AGENT_ROADMAP.md].
+A modern, scalable platform for managing multiple cryptocurrency nodes with a unified interface.
 
-### Key Goals
-- Modular, per-coin architecture (easy to add new coins)
-- Unified config and validation (Zod schemas)
-- Test-driven development (Jest, E2E, integration)
-- Robust CI/CD (GitHub Actions, Husky, lint/test hooks)
-- Comprehensive documentation and onboarding
+## Features
 
-## Quickstart
-```sh
-npm install
-npm run lint
-npm test
-# To run browser or TUI wizard, see wizards/README.md (coming soon)
+- **Multi-Coin Support**: Manage Bitcoin, MeowCoin, and other cryptocurrencies from a single interface
+- **Modern UI**: Responsive, accessible interface with dark mode support
+- **Secure**: Implements security best practices including CSP, CSRF protection, and rate limiting
+- **Offline Support**: Service worker for offline capabilities
+- **Containerized**: Docker support for easy deployment
+- **Well-Tested**: Comprehensive unit and E2E tests
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+ (20.x recommended)
+- npm 9+ or yarn 1.22+
+- Docker and Docker Compose (optional, for containerized deployment)
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-org/multi-coin-refactor.git
+   cd multi-coin-refactor
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Create a `.env` file from the example:
+   ```bash
+   cp .env.example .env
+   ```
+
+4. Build the TypeScript code:
+   ```bash
+   npm run build
+   ```
+
+5. Start the application:
+   ```bash
+   npm start
+   ```
+
+6. Open your browser and navigate to:
+   ```
+   http://localhost:12000
+   ```
+
+### Docker Deployment
+
+1. Build and start the Docker container:
+   ```bash
+   docker-compose up -d
+   ```
+
+2. Access the application at:
+   ```
+   http://localhost:12000
+   ```
+
+## Development
+
+### Available Scripts
+
+- `npm start` - Start the application
+- `npm run dev` - Start the application in development mode with hot reloading
+- `npm run build` - Build the TypeScript code
+- `npm test` - Run unit tests
+- `npx playwright test` - Run E2E tests
+- `npm run lint` - Run ESLint
+- `npm run onboarding:tui` - Start the terminal-based onboarding wizard
+
+### Project Structure
+
 ```
-
-## Directory Structure
-- `coins/` — Per-coin modules (MeowCoin, Bitcoin, Template)
-- `core/` — Shared types, config, validation, registry
-- `api/` — Coin-agnostic API routes
-- `wizards/` — Browser and TUI onboarding flows
-- `test/` — Unit, integration, and E2E tests
-- `.github/` — CI/CD workflows
-- `.husky/` — Pre-commit hooks (lint, test)
-- `AI_AGENT_ROADMAP.md` — Source of truth for all work
-
-## Contribution Guide
-- All changes must pass `npm run lint` and `npm test`
-- Pre-commit hooks enforce code quality
-- All PRs must reference a roadmap item
-- New features require tests and documentation
-- Use the provided coin module template for new coins
-
-## CI/CD & Test Philosophy
-- All code is linted and tested on every commit and PR
-- No code is merged without passing tests
-- Test coverage is tracked and improved continuously
-
-## Adding a New Coin Module
-1. Copy `coins/template/` to `coins/yourcoin/`
-2. Implement constants, rpc, validation, and index
-3. Add config/validation schemas in `core/`
-4. Register your coin in the registry
-5. Add tests in `test/`
-6. Update docs and roadmap
-
-## Documentation
-- [AI_AGENT_ROADMAP.md] — Milestones, progress, and logs
-- [docs/] — API reference, guides, onboarding (coming soon)
-
-## Next Steps
-- Onboarding flows and advanced E2E tests
-- User feedback loop integration
-
-## Bulk Editing Best Practices
-For large-scale, repetitive changes (e.g., renaming, updating exports/imports, or adding comments across many files), use:
-- VS Code's [Change All Occurrences](https://dev.to/ahandsel/easily-bulk-edit-files-in-visual-studio-code-4pp1) (Ctrl+D/Cmd+D), multi-cursor editing, or project-wide Find & Replace (Ctrl+Shift+F/Cmd+Shift+F).
-- For even larger codebase-wide changes, consider using [sed](https://karandeepsingh.ca/posts/replace-text-multiple-files-sed-guide/) or find + sed in the terminal for safe, version-controlled bulk edits.
-- For cross-repo or massive changes, consider [Sourcegraph Batch Changes](https://about.sourcegraph.com/batch-changes).
-
----
-All core modules, registry, API, and wizards are fully tested and CI/CD is green. See [AI_AGENT_ROADMAP.md] for progress.
+multi-coin-refactor/
+├── core/                  # Core business logic
+│   ├── auth/              # Authentication
+│   ├── feedback/          # Feedback handling
+│   ├── monitoring/        # Metrics and monitoring
+│   ├── onboarding/        # Onboarding logic
+│   ├── secrets/           # Secrets management
+│   └── validation/        # Validation logic
+├── dist/                  # Compiled TypeScript output
+├── docs/                  # Documentation
+├── e2e/                   # End-to-end tests
+├── public/                # Static assets
+├── server/                # Express server
+│   ├── controllers/       # Request handlers
+│   ├── middleware/        # Express middleware
+│   └── routes/            # API routes
+├── test/                  # Unit tests
+├── test-logs/             # Test logs
+└── wizards/               # Onboarding wizards
+    ├── browser/           # Browser-based wizard
+    └── tui/               # Terminal-based wizard
+```
 
 For more, see the roadmap and docs folders.
 

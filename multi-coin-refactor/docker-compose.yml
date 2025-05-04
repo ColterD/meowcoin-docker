@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: meowcoin-platform
+    restart: unless-stopped
+    ports:
+      - "12000:12000"
+    environment:
+      - NODE_ENV=production
+      - PORT=12000
+      - HOST=0.0.0.0
+      - FEEDBACK_PERSISTENCE=db
+      - ONBOARDING_PERSISTENCE=db
+    volumes:
+      - app-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:12000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - meowcoin-network
+
+networks:
+  meowcoin-network:
+    driver: bridge
+
+volumes:
+  app-data:
+    driver: local
