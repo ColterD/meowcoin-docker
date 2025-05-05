@@ -1,0 +1,354 @@
+openapi: 3.0.3
+info:
+  title: Multi-Coin Blockchain Platform API
+  description: |
+    API for managing multiple cryptocurrency nodes with a unified interface.
+    
+    This API allows you to:
+    - Configure and manage multiple cryptocurrency nodes
+    - Submit and retrieve user feedback
+    - Monitor the health of the platform
+  version: 1.0.0
+  contact:
+    name: Multi-Coin Blockchain Platform Team
+    url: https://github.com/your-org/multi-coin-refactor
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: /api/v1
+    description: Current API version
+
+tags:
+  - name: Onboarding
+    description: Onboarding and configuration endpoints
+  - name: Feedback
+    description: User feedback endpoints
+  - name: Health
+    description: Health check endpoints
+
+paths:
+  /onboarding:
+    post:
+      summary: Configure a new coin
+      description: |
+        Onboard a new cryptocurrency node with the provided configuration.
+        This endpoint validates the configuration and saves it for future use.
+      tags:
+        - Onboarding
+      operationId: createOnboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingRequest'
+      responses:
+        '200':
+          description: Successful onboarding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - ApiKeyAuth: []
+  
+  /feedback:
+    post:
+      summary: Submit feedback
+      description: |
+        Submit user feedback about the platform.
+        This endpoint validates the feedback and saves it for future review.
+      tags:
+        - Feedback
+      operationId: createFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+      responses:
+        '200':
+          description: Feedback submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  
+  /health:
+    get:
+      summary: Health check
+      description: |
+        Check the health of the platform.
+        This endpoint returns the status of the platform and its services.
+      tags:
+        - Health
+      operationId: getHealth
+      responses:
+        '200':
+          description: Health check successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ApiResponse:
+      type: object
+      required:
+        - success
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          description: Indicates if the request was successful
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of the response
+    
+    ErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          required:
+            - error
+          properties:
+            success:
+              type: boolean
+              enum: [false]
+              description: Always false for error responses
+            error:
+              type: string
+              description: Error message
+            details:
+              type: object
+              description: Additional error details
+            code:
+              type: string
+              description: Error code
+    
+    SuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            success:
+              type: boolean
+              enum: [true]
+              description: Always true for success responses
+            data:
+              type: object
+              description: Response data
+    
+    HealthCheckResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required:
+            - status
+            - version
+            - uptime
+          properties:
+            data:
+              type: object
+              required:
+                - status
+                - version
+                - uptime
+              properties:
+                status:
+                  type: string
+                  enum: [ok, degraded, error]
+                  description: Overall status of the platform
+                version:
+                  type: string
+                  description: Version of the platform
+                uptime:
+                  type: number
+                  description: Uptime in seconds
+                services:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    required:
+                      - status
+                    properties:
+                      status:
+                        type: string
+                        enum: [ok, degraded, error]
+                        description: Status of the service
+                      message:
+                        type: string
+                        description: Additional information about the service
+    
+    OnboardingRequest:
+      type: object
+      required:
+        - coin
+        - config
+      properties:
+        coin:
+          type: string
+          description: Symbol of the coin to onboard
+          example: BTC
+        config:
+          type: object
+          required:
+            - rpcUrl
+            - network
+          properties:
+            rpcUrl:
+              type: string
+              format: uri
+              description: URL of the RPC endpoint
+              example: http://localhost:8332
+            network:
+              type: string
+              enum: [mainnet, testnet, regtest]
+              description: Network to connect to
+              example: testnet
+            enabled:
+              type: boolean
+              description: Whether the coin is enabled
+              default: true
+            minConfirmations:
+              type: integer
+              minimum: 0
+              description: Minimum confirmations required
+              default: 1
+            timeout:
+              type: integer
+              minimum: 1000
+              description: Timeout in milliseconds
+              default: 30000
+          additionalProperties: true
+    
+    OnboardingResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - coin
+                - configId
+                - createdAt
+              properties:
+                coin:
+                  type: string
+                  description: Symbol of the onboarded coin
+                  example: BTC
+                configId:
+                  type: string
+                  description: Unique identifier for the configuration
+                  example: 123e4567-e89b-12d3-a456-426614174000
+                createdAt:
+                  type: string
+                  format: date-time
+                  description: ISO 8601 timestamp of when the configuration was created
+    
+    FeedbackRequest:
+      type: object
+      required:
+        - feedback
+      properties:
+        feedback:
+          type: string
+          description: User feedback
+          example: I really like the new interface!
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              description: User ID
+              example: user123
+            authenticated:
+              type: boolean
+              description: Whether the user is authenticated
+              example: true
+          additionalProperties: true
+        context:
+          type: string
+          description: Context of the feedback
+          example: onboarding
+    
+    FeedbackResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - feedbackId
+                - createdAt
+              properties:
+                feedbackId:
+                  type: string
+                  description: Unique identifier for the feedback
+                  example: 123e4567-e89b-12d3-a456-426614174000
+                createdAt:
+                  type: string
+                  format: date-time
+                  description: ISO 8601 timestamp of when the feedback was created
+  
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

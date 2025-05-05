@@ -8,6 +8,9 @@ const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
+const fs = require('fs');
 const apiRoutes = require('./routes/api');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { securityHeaders, csrfProtection } = require('./middleware/security');
@@ -33,7 +36,7 @@ app.use(securityHeaders);
 app.use(cors({
   origin: '*', // In production, this should be restricted
   methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-Key']
 }));
 
 // Request parsing
@@ -48,8 +51,10 @@ app.use(morgan(NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // Custom request logging
 app.use((req, res, next) => {
-  // Skip logging for static files
-  if (!req.path.startsWith('/static') && !req.path.includes('.')) {
+  // Skip logging for static files and API docs
+  if (!req.path.startsWith('/static') && 
+      !req.path.includes('.') && 
+      !req.path.startsWith('/api-docs')) {
     recordMetric({
       type: 'request',
       data: { 
@@ -64,11 +69,36 @@ app.use((req, res, next) => {
   next();
 });
 
-// CSRF protection for non-GET requests
-app.use(csrfProtection);
+// CSRF protection for non-GET requests (except API docs)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api-docs')) {
+    return next();
+  }
+  csrfProtection(req, res, next);
+});
 
 // Static files
 app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// API Documentation
+const swaggerDocument = YAML.load(path.join(__dirname, 'openapi.yaml'));
+// Add server URL dynamically
+swaggerDocument.servers.unshift({
+  url: `http://${HOST}:${PORT}/api/v1`,
+  description: 'Local development server'
+});
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Multi-Coin Blockchain Platform API',
+  customfavIcon: '/favicon.ico',
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    filter: true,
+    deepLinking: true,
+  }
+}));
 
 // API routes
 app.use('/api', apiRoutes);
@@ -80,6 +110,25 @@ app.get('/onboarding', (req, res) => {
 
 app.get('/', (req, res) => {
   res.redirect('/onboarding');
+});
+
+// Redirect to API docs
+app.get('/docs', (req, res) => {
+  res.redirect('/api-docs');
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  const uptime = process.uptime();
+  const { version } = require('../package.json');
+  
+  res.status(200).json({
+    success: true,
+    status: 'ok',
+    version,
+    uptime,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // 404 handler
@@ -95,6 +144,7 @@ module.exports = app;
 if (require.main === module) {
   app.listen(PORT, HOST, () => {
     console.log(`Server running at http://${HOST}:${PORT}`);
+    console.log(`API Documentation: http://${HOST}:${PORT}/api-docs`);
     console.log(`Environment: ${NODE_ENV}`);
     console.log(`Access via: https://work-1-rpekkbutozogdpsa.prod-runtime.all-hands.dev`);
   });

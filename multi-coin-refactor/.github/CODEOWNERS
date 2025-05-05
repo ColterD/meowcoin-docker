@@ -1,0 +1,20 @@
+# Default owners for everything in the repo
+* @ColterD
+
+# Specific owners for certain directories
+/server/ @ColterD
+/core/ @ColterD
+/types/ @ColterD
+/public/ @ColterD
+/e2e/ @ColterD
+/docs/ @ColterD
+
+# Specific owners for configuration files
+*.json @ColterD
+*.yml @ColterD
+*.yaml @ColterD
+Dockerfile @ColterD
+docker-compose.yml @ColterD
+
+# Specific owners for GitHub workflows
+/.github/ @ColterD

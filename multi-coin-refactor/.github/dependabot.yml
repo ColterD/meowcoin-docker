@@ -1,0 +1,61 @@
+version: 2
+updates:
+  # Enable version updates for npm
+  - package-ecosystem: "npm"
+    # Look for `package.json` and `lock` files in the `root` directory
+    directory: "/"
+    # Check for updates once a week
+    schedule:
+      interval: "weekly"
+    # Limit the number of open pull requests for npm dependencies
+    open-pull-requests-limit: 10
+    # Assign reviewers
+    reviewers:
+      - "ColterD"
+    # Labels on pull requests for npm dependencies
+    labels:
+      - "dependencies"
+      - "npm"
+    # Allow up to 5 dependencies to be updated in each pull request
+    groups:
+      # Group production dependencies together
+      production-dependencies:
+        dependency-type: "production"
+        patterns:
+          - "*"
+      # Group development dependencies together
+      development-dependencies:
+        dependency-type: "development"
+        patterns:
+          - "*"
+    # Ignore updates for specific dependencies
+    ignore:
+      # Ignore major updates for these dependencies
+      - dependency-name: "express"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "better-sqlite3"
+        update-types: ["version-update:semver-major"]
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "ColterD"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Enable version updates for Docker
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "ColterD"
+    labels:
+      - "dependencies"
+      - "docker"
