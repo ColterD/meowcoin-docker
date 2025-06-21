@@ -73,6 +73,9 @@ RUN groupadd -g "${MEOWCOIN_GID}" meowcoin && \
 COPY --from=fetcher /downloads/meowcoin-*/bin/meowcoind /usr/local/bin/
 COPY --from=fetcher /downloads/meowcoin-*/bin/meowcoin-cli /usr/local/bin/
 COPY meowcoin-core/entrypoint.sh /entrypoint.sh
+
+# Create config directory and copy template
+RUN mkdir -p /etc/meowcoin
 COPY config/meowcoin.conf.template /etc/meowcoin/meowcoin.conf.template
 
 # Set permissions and create data directory
@@ -84,7 +87,7 @@ RUN chmod +x /entrypoint.sh && \
 VOLUME /home/meowcoin/.meowcoin
 
 # Healthcheck to ensure the node is running and responsive
-HEALTHCHECK --interval=60s --timeout=30s --start-period=300s --retries=3 \
+HEALTHCHECK --interval=60s --timeout=30s --start-period=300s --retries=5 \
   CMD gosu meowcoin meowcoin-cli -datadir=/home/meowcoin/.meowcoin getblockchaininfo || exit 1
 
 # Use tini as init to handle signals properly

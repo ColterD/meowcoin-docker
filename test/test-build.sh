@@ -54,8 +54,8 @@ if ! grep -q "HEALTHCHECK" meowcoin-core/Dockerfile; then
   exit 1
 fi
 
-# Verify docker-compose.yml configuration
-echo "Verifying docker-compose.yml configuration..."
+# Verify Docker Compose configuration
+echo "Verifying Docker Compose configuration..."
 if ! grep -q "healthcheck" docker-compose.yml; then
   echo "ERROR: docker-compose.yml does not contain healthcheck configuration!"
   exit 1
