@@ -4,18 +4,20 @@ services:
   meowcoin-core:
     build:
       context: .
-      dockerfile: ./docker/core/Dockerfile
+      dockerfile: ./meowcoin-core/Dockerfile
       args:
+        # For the most reliable builds, uncomment the line below and set a specific version
+        # Find available versions on the Meowcoin GitHub releases page
+        # MEOWCOIN_VERSION: 2.0.5
         MEOWCOIN_VERSION: ${MEOWCOIN_VERSION:-latest}
         MEOWCOIN_ARCH: ${MEOWCOIN_ARCH:-x86_64-linux-gnu}
         MEOWCOIN_UID: ${MEOWCOIN_UID:-1000}
         MEOWCOIN_GID: ${MEOWCOIN_GID:-1000}
-        SKIP_VERIFY: ${SKIP_VERIFY:-false}
-    image: ${DOCKER_REGISTRY:-local}/meowcoin-core:${MEOWCOIN_VERSION:-latest}
-    container_name: ${CONTAINER_PREFIX:-meowcoin}-node
+    container_name: meowcoin-node
     hostname: meowcoin-core
     restart: unless-stopped
     environment:
+      # Pass config variables to the entrypoint script
       - MEOWCOIN_RPC_PORT=${MEOWCOIN_RPC_PORT:-9766}
       - MEOWCOIN_P2P_PORT=${MEOWCOIN_P2P_PORT:-8788}
       - MEOWCOIN_MAX_CONNECTIONS=${MEOWCOIN_MAX_CONNECTIONS:-100}
@@ -26,13 +28,14 @@ services:
       - MEOWCOIN_BANTIME=${MEOWCOIN_BANTIME:-86400}
       - TZ=${TZ:-UTC}
     ports:
-      - "${MEOWCOIN_RPC_BIND:-127.0.0.1}:${MEOWCOIN_RPC_PORT:-9766}:${MEOWCOIN_RPC_PORT:-9766}"
-      - "${MEOWCOIN_P2P_BIND:-0.0.0.0}:${MEOWCOIN_P2P_PORT:-8788}:${MEOWCOIN_P2P_PORT:-8788}"
+      - "127.0.0.1:${MEOWCOIN_RPC_PORT:-9766}:${MEOWCOIN_RPC_PORT:-9766}"
+      - "${MEOWCOIN_P2P_PORT:-8788}:${MEOWCOIN_P2P_PORT:-8788}"
     volumes:
       - meowcoin_data:/home/meowcoin/.meowcoin
-      - ${MEOWCOIN_CUSTOM_CONFIG:-/dev/null}:/home/meowcoin/.meowcoin/meowcoin.conf:ro
+      # Uncomment the line below to use a custom meowcoin.conf file
+      # - ./path/to/your/meowcoin.conf:/home/meowcoin/.meowcoin/meowcoin.conf:ro
     healthcheck:
-      test: ["CMD", "/healthcheck.sh"]
+      test: ["CMD", "gosu", "meowcoin", "meowcoin-cli", "-datadir=/home/meowcoin/.meowcoin", "getblockchaininfo"]
       interval: 60s
       timeout: 30s
       retries: 5
@@ -68,18 +71,15 @@ services:
   meowcoin-monitor:
     build:
       context: .
-      dockerfile: ./docker/monitor/Dockerfile
-    image: ${DOCKER_REGISTRY:-local}/meowcoin-monitor:${MEOWCOIN_VERSION:-latest}
-    container_name: ${CONTAINER_PREFIX:-meowcoin}-monitor
+      dockerfile: ./meowcoin-monitor/Dockerfile
+    container_name: meowcoin-monitor
     depends_on:
       meowcoin-core:
         condition: service_healthy
     restart: unless-stopped
     environment:
       - MEOWCOIN_RPC_PORT=${MEOWCOIN_RPC_PORT:-9766}
-      - MEOWCOIN_HOST=meowcoin-core
-      - MONITOR_INTERVAL=${MONITOR_INTERVAL:-180}
-      - TZ=${TZ:-UTC}
+      - MONITOR_INTERVAL=${MONITOR_INTERVAL:-60}
     volumes:
       - meowcoin_data:/data:ro
     read_only: true
@@ -91,29 +91,18 @@ services:
       - no-new-privileges:true
     ulimits:
       nproc: 64
-      nofile:
-        soft: 1024
-        hard: 1024
-    deploy:
-      resources:
-        limits:
-          memory: ${MONITOR_LIMIT_MEMORY:-256M}
-          cpus: '${MONITOR_LIMIT_CPUS:-0.2}'
     logging:
       driver: "json-file"
       options:
-        max-size: "5m"
+        max-size: "10m"
         max-file: "3"
 
 networks:
   default:
     driver: bridge
-    name: ${NETWORK_NAME:-meowcoin-network}
-    ipam:
-      config:
-        - subnet: ${NETWORK_SUBNET:-172.20.0.0/24}
+    name: meowcoin-network
 
 volumes:
   meowcoin_data:
     driver: local
-    name: ${VOLUME_NAME:-meowcoin_data}
+    name: meowcoin_data
