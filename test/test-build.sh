@@ -24,7 +24,7 @@ cd "$TEST_DIR"
 
 # Build the Docker images
 echo "Building Docker images..."
-docker-compose build
+docker compose build
 
 # Verify the images were created
 echo "Verifying images..."
@@ -40,10 +40,10 @@ fi
 
 echo "Images built successfully!"
 
-# Test the healthcheck script
-echo "Testing healthcheck script..."
-if ! grep -q "getblockchaininfo" meowcoin-core/healthcheck.sh; then
-  echo "ERROR: healthcheck script does not contain expected content!"
+# Test the healthcheck in entrypoint.sh
+echo "Testing healthcheck in entrypoint.sh..."
+if ! grep -q "getblockchaininfo" meowcoin-core/entrypoint.sh; then
+  echo "ERROR: entrypoint.sh does not contain healthcheck functionality!"
   exit 1
 fi
 

@@ -38,6 +38,8 @@ FROM debian:bookworm-slim
 LABEL maintainer="Meowcoin Docker Maintainers"
 LABEL description="Meowcoin Core node in Docker"
 LABEL version="2.0"
+LABEL org.opencontainers.image.source="https://github.com/ColterD/meowcoin-docker"
+LABEL org.opencontainers.image.licenses="MIT"
 
 # Install runtime dependencies and gosu (for privilege-dropping)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -50,7 +52,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     tini \
     && curl -L -o /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/1.17/gosu-amd64" \
+    && curl -L -o /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/1.17/gosu-amd64.asc" \
+    && export GNUPGHOME="$(mktemp -d)" \
+    && gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 \
+    && gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu \
+    && rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc \
     && chmod +x /usr/local/bin/gosu \
+    && gosu --version \
     && rm -rf /var/lib/apt/lists/*
 
 # Add build arguments for user and group IDs
@@ -65,6 +73,7 @@ RUN groupadd -g "${MEOWCOIN_GID}" meowcoin && \
 COPY --from=fetcher /downloads/meowcoin-*/bin/meowcoind /usr/local/bin/
 COPY --from=fetcher /downloads/meowcoin-*/bin/meowcoin-cli /usr/local/bin/
 COPY meowcoin-core/entrypoint.sh /entrypoint.sh
+COPY config/meowcoin.conf.template /etc/meowcoin/meowcoin.conf.template
 
 # Set permissions and create data directory
 RUN chmod +x /entrypoint.sh && \

@@ -13,6 +13,7 @@ services:
         MEOWCOIN_ARCH: ${MEOWCOIN_ARCH:-x86_64-linux-gnu}
         MEOWCOIN_UID: ${MEOWCOIN_UID:-1000}
         MEOWCOIN_GID: ${MEOWCOIN_GID:-1000}
+    image: meowcoin-core:${MEOWCOIN_VERSION:-latest}
     container_name: meowcoin-node
     hostname: meowcoin-core
     restart: unless-stopped
@@ -49,6 +50,7 @@ services:
       - NET_BIND_SERVICE
     security_opt:
       - no-new-privileges:true
+      - seccomp=default
     ulimits:
       nproc: 1024
       nofile:
@@ -72,6 +74,7 @@ services:
     build:
       context: .
       dockerfile: ./meowcoin-monitor/Dockerfile
+    image: meowcoin-monitor:latest
     container_name: meowcoin-monitor
     depends_on:
       meowcoin-core:
@@ -89,8 +92,17 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+      - seccomp=default
     ulimits:
       nproc: 64
+      nofile:
+        soft: 1024
+        hard: 1024
+    deploy:
+      resources:
+        limits:
+          memory: ${MONITOR_LIMIT_MEMORY:-256M}
+          cpus: '${MONITOR_LIMIT_CPUS:-0.2}'
     logging:
       driver: "json-file"
       options:
