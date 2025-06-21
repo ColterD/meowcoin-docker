@@ -1,0 +1,50 @@
+services:
+  meowcoin-core:
+    build:
+      context: .
+      dockerfile: ./meowcoin-core/Dockerfile
+      args:
+        MEOWCOIN_VERSION: ${MEOWCOIN_VERSION:-latest}
+        MEOWCOIN_ARCH: ${MEOWCOIN_ARCH:-x86_64-linux-gnu}
+        MEOWCOIN_UID: ${MEOWCOIN_UID:-1000}
+        MEOWCOIN_GID: ${MEOWCOIN_GID:-1000}
+    image: meowcoin-core:${MEOWCOIN_VERSION:-latest}
+    container_name: meowcoin-node
+    hostname: meowcoin-core
+    restart: unless-stopped
+    environment:
+      - MEOWCOIN_RPC_PORT=${MEOWCOIN_RPC_PORT:-9766}
+      - MEOWCOIN_P2P_PORT=${MEOWCOIN_P2P_PORT:-8788}
+      - MEOWCOIN_MAX_CONNECTIONS=${MEOWCOIN_MAX_CONNECTIONS:-100}
+      - MEOWCOIN_DB_CACHE=${MEOWCOIN_DB_CACHE:-1024}
+      - MEOWCOIN_MAX_MEMPOOL=${MEOWCOIN_MAX_MEMPOOL:-300}
+      - MEOWCOIN_TXINDEX=${MEOWCOIN_TXINDEX:-1}
+      - MEOWCOIN_MEOWPOW=${MEOWCOIN_MEOWPOW:-1}
+      - MEOWCOIN_BANTIME=${MEOWCOIN_BANTIME:-86400}
+      - TZ=${TZ:-UTC}
+    ports:
+      - "127.0.0.1:${MEOWCOIN_RPC_PORT:-9766}:${MEOWCOIN_RPC_PORT:-9766}"
+      - "${MEOWCOIN_P2P_PORT:-8788}:${MEOWCOIN_P2P_PORT:-8788}"
+    volumes:
+      - meowcoin_data:/home/meowcoin/.meowcoin
+
+  meowcoin-monitor:
+    build:
+      context: .
+      dockerfile: ./meowcoin-monitor/Dockerfile
+    image: meowcoin-monitor:latest
+    container_name: meowcoin-monitor
+    depends_on:
+      - meowcoin-core
+    restart: unless-stopped
+    environment:
+      - MEOWCOIN_RPC_PORT=${MEOWCOIN_RPC_PORT:-9766}
+      - MONITOR_INTERVAL=${MONITOR_INTERVAL:-60}
+      - DEBUG=${DEBUG:-1}
+    volumes:
+      - meowcoin_data:/data:ro
+
+volumes:
+  meowcoin_data:
+    driver: local
+    name: meowcoin_data

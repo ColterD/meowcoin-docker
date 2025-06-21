@@ -1,0 +1,31 @@
+FROM debian:bookworm-slim
+
+LABEL maintainer="Meowcoin Docker Maintainers"
+LABEL description="Meowcoin monitoring service"
+LABEL version="2.0"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    bc \
+    ca-certificates \
+    curl \
+    jq \
+    netcat-openbsd \
+    tini \
+    iputils-ping \
+    iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN adduser --system --group --shell /bin/bash monitor
+
+COPY meowcoin-monitor/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+RUN mkdir -p /data && chown -R monitor:monitor /data
+
+VOLUME /data
+
+USER monitor
+WORKDIR /home/monitor
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]

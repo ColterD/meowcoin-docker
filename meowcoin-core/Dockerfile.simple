@@ -1,0 +1,66 @@
+FROM debian:bookworm-slim AS fetcher
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    tar \
+    xz-utils \
+    jq \
+    ca-certificates \
+    gnupg \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG MEOWCOIN_VERSION=latest
+ARG MEOWCOIN_ARCH=x86_64-linux-gnu
+
+WORKDIR /downloads
+
+COPY meowcoin-core/meowcoin_release.asc /meowcoin_release.asc
+COPY meowcoin-core/download-and-verify.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/download-and-verify.sh
+
+ENV MEOWCOIN_VERSION=${MEOWCOIN_VERSION}
+ENV MEOWCOIN_ARCH=${MEOWCOIN_ARCH}
+RUN bash /usr/local/bin/download-and-verify.sh
+
+FROM debian:bookworm-slim
+
+LABEL maintainer="Meowcoin Docker Maintainers"
+LABEL description="Meowcoin Core node in Docker"
+LABEL version="2.0"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    libjemalloc2 \
+    jq \
+    openssl \
+    gettext \
+    ca-certificates \
+    curl \
+    tini \
+    && curl -L -o /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/1.17/gosu-amd64" \
+    && chmod +x /usr/local/bin/gosu \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG MEOWCOIN_UID=1000
+ARG MEOWCOIN_GID=1000
+
+RUN groupadd -g "${MEOWCOIN_GID}" meowcoin && \
+    useradd -u "${MEOWCOIN_UID}" -g "${MEOWCOIN_GID}" -s /bin/bash -m -d /home/meowcoin meowcoin
+
+COPY --from=fetcher /downloads/meowcoin-*/bin/meowcoind /usr/local/bin/
+COPY --from=fetcher /downloads/meowcoin-*/bin/meowcoin-cli /usr/local/bin/
+COPY meowcoin-core/entrypoint.sh /entrypoint.sh
+
+RUN mkdir -p /etc/meowcoin
+COPY config/meowcoin.conf.template /etc/meowcoin/meowcoin.conf.template
+
+RUN chmod +x /entrypoint.sh && \
+    mkdir -p /home/meowcoin/.meowcoin && \
+    chown -R meowcoin:meowcoin /home/meowcoin/.meowcoin
+
+VOLUME /home/meowcoin/.meowcoin
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]
+
+CMD ["meowcoind"]
