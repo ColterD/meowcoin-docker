@@ -147,8 +147,7 @@ else
 fi
 
 echo "Extracting archive..."
-tar -xzf meowcoin.tar.gz
-if [ $? -ne 0 ]; then
+if ! tar -xzf meowcoin.tar.gz; then
   echo "FATAL: Failed to extract meowcoin.tar.gz. tar exited with code $?." >&2
   exit 3
 fi

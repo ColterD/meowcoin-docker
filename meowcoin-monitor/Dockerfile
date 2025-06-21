@@ -31,6 +31,10 @@ RUN mkdir -p /data && chown -R monitor:monitor /data
 # Set volume
 VOLUME /data
 
+# Add healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD nc -z meowcoin-core ${MEOWCOIN_RPC_PORT:-9766} -w 5 || exit 1
+
 # Switch to non-root user
 USER monitor
 WORKDIR /home/monitor
