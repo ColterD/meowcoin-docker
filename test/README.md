@@ -11,15 +11,17 @@ The `test-build.sh` script verifies that the Docker images can be built correctl
 To run the build test:
 
 ```bash
-./test/test-build.sh
+sudo ./test/test-build.sh
 ```
+
+Note: The test requires Docker to be installed and running, and may need sudo privileges.
 
 This test:
 1. Creates a temporary directory
 2. Copies the project files
 3. Builds the Docker images
 4. Verifies that the images were created successfully
-5. Checks that the healthcheck script contains the expected content
+5. Checks that the entrypoint.sh contains healthcheck functionality
 6. Verifies that the Dockerfile contains the HEALTHCHECK directive
 7. Confirms that docker-compose.yml has the proper healthcheck configuration
 

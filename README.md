@@ -7,20 +7,20 @@ It is designed to be as "plug-and-play" as possible. The system automatically do
 ## Features
 
 - **Blazing Fast Setup**: Downloads pre-compiled official releases, not source code. Get a node running in minutes, not hours.
-- **Zero-Config Start**: Works out-of-the-box with `docker-compose up`. No need to create `.env` files.
+- **Zero-Config Start**: Works out-of-the-box with `docker compose up`. No need to create `.env` files.
 - **Secure by Default**: Automatically generates a unique RPC username and password and stores them securely in a persistent volume.
 - **Persistent & Robust**: Blockchain data and credentials persist in a Docker volume.
 - **Unprivileged**: Runs the node as a non-root `meowcoin` user for enhanced security.
-- **Health-checked**: Includes a robust health check to ensure the node is fully responsive.
-- **Simplified CLI**: Interact with `meowcoin-cli` using direct `docker-compose exec` commands.
+- **Health-checked**: Includes robust health checks for both core and monitor services to ensure they are fully responsive.
+- **Simplified CLI**: Interact with `meowcoin-cli` using direct `docker compose exec` commands.
 - **Cross-Platform**: Uses Debian-based images for wide compatibility.
 - **Resource-Optimized**: Automatically detects system resources and configures optimal settings.
 - **Resilient Downloads**: Implements retry logic and fallbacks for reliable downloads.
+- **Templated Configuration**: Uses a template system for generating configuration files, making customization easier.
 
 ## Prerequisites
 
-- [Docker](https://www.docker.com/products/docker-desktop/)
-- [Docker Compose](https://docs.docker.com/compose/install/)
+- [Docker](https://www.docker.com/products/docker-desktop/) with Docker Compose V2 (included with recent Docker installations)
 
 ## Getting Started
 
@@ -32,14 +32,14 @@ It is designed to be as "plug-and-play" as possible. The system automatically do
 
 2.  **Start the node:**
     ```bash
-    docker-compose up -d
+    docker compose up -d
     ```
 
 That's it! On the first run, the service will download the latest Meowcoin release and start syncing the blockchain. Your RPC credentials are created automatically and stored securely.
 
 To view the generated credentials, run:
 ```bash
-docker-compose exec meowcoin-core cat /home/meowcoin/.meowcoin/.credentials
+docker compose exec meowcoin-core cat /home/meowcoin/.meowcoin/.credentials
 ```
 These credentials are saved in the `meowcoin_data` volume and will persist across restarts.
 
@@ -47,30 +47,30 @@ These credentials are saved in the `meowcoin_data` volume and will persist acros
 
 ### Using `meowcoin-cli`
 
-To interact with your node, use `docker-compose exec meowcoin-core` followed by your desired `meowcoin-cli` command. The entrypoint script automatically handles the authentication.
+To interact with your node, use `docker compose exec meowcoin-core` followed by your desired `meowcoin-cli` command. The entrypoint script automatically handles the authentication.
 
 **Examples:**
 ```bash
 # Get blockchain info
-docker-compose exec meowcoin-core getblockchaininfo
+docker compose exec meowcoin-core getblockchaininfo
 
 # Get network info
-docker-compose exec meowcoin-core getnetworkinfo
+docker compose exec meowcoin-core getnetworkinfo
 
 # Get mempool info
-docker-compose exec meowcoin-core getmempoolinfo
+docker compose exec meowcoin-core getmempoolinfo
 ```
 
 ### Checking Logs
 
 To view the real-time logs from the Meowcoin node:
 ```bash
-docker-compose logs -f meowcoin-core
+docker compose logs -f meowcoin-core
 ```
 
 To view the logs from the monitor service:
 ```bash
-docker-compose logs -f meowcoin-monitor
+docker compose logs -f meowcoin-monitor
 ```
 
 ### Building a Specific Version
@@ -95,7 +95,7 @@ By default, this project builds the `latest` official release of Meowcoin. If yo
 2.  **Build and Start the Node**:
     Use the `--build` flag to force Docker Compose to build the image with your specified version.
     ```bash
-    docker-compose up -d --build
+    docker compose up -d --build
     ```
 
 ### Custom Configuration
@@ -104,6 +104,7 @@ This project is designed to be highly flexible. While it works out-of-the-box, y
 
 - **Resource Limits & Ports**: The `docker-compose.yml` file allows you to easily change resource reservations, limits, and port mappings.
 - **Node Arguments**: You can pass additional command-line arguments to `meowcoind` by modifying the `CMD` in `docker-compose.yml`.
+- **Configuration Template**: The project uses a template file (`config/meowcoin.conf.template`) that can be modified to customize the default configuration.
 - **meowcoin.conf**: To use a completely custom `meowcoin.conf` file, you can mount it into the container.
   1. Create your `meowcoin.conf` file on the host machine.
   2. Uncomment and edit the following line in the `volumes` section of the `meowcoin-core` service in `docker-compose.yml`:
@@ -143,6 +144,7 @@ This project was built from the ground up with security as a top priority. It in
 ## Project Structure
 
 - `docker-compose.yml`: Defines the `meowcoin-core` and `meowcoin-monitor` services. It includes sensible defaults and allows for version pinning.
+- `.dockerignore`: Specifies files and directories that should be excluded from the Docker build context.
 - `meowcoin-core/`:
   - `Dockerfile`: A multi-stage Dockerfile that fetches a specified or latest official Meowcoin release and sets up a secure runtime environment.
   - `entrypoint.sh`: **The core logic.** Handles node startup, automatic credential generation, and routing for `meowcoin-cli` commands.
@@ -150,6 +152,10 @@ This project was built from the ground up with security as a top priority. It in
 - `meowcoin-monitor/`:
   - `Dockerfile`: A simple Dockerfile for the monitor service.
   - `entrypoint.sh`: A script that periodically checks the node's status.
+- `config/`:
+  - `meowcoin.conf.template`: Template file used to generate the meowcoin.conf configuration file.
+  - `README.md`: Documentation for the configuration templates.
+- `test/`: Contains test scripts to verify the Docker build process.
 - `README.md`: This file.
 
 ## Troubleshooting
@@ -157,8 +163,10 @@ This project was built from the ground up with security as a top priority. It in
 ### Common Issues
 
 - **Build fails with GitHub API error**: Set a specific version in `docker-compose.yml` instead of using `latest`.
-- **Node won't start**: Check logs with `docker-compose logs meowcoin-core` for specific errors.
+- **Node won't start**: Check logs with `docker compose logs meowcoin-core` for specific errors.
 - **RPC connection issues**: Verify the RPC port is correctly mapped and not blocked by a firewall.
+- **Template not found**: Ensure the `/etc/meowcoin` directory exists in the container and the template file is correctly copied.
+- **Monitor service not connecting**: Check if the monitor service can reach the core service with `docker compose exec meowcoin-monitor nc -z meowcoin-core 9766`.
 
 For more detailed troubleshooting, see the logs or open an issue on GitHub.
 
