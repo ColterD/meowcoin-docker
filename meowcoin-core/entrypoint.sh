@@ -146,8 +146,11 @@ log_info "Starting meowcoin daemon setup..."
 # --- Initial Setup ---
 log_info "Creating data directory: ${MEOWCOIN_DATA_DIR}"
 # Create the data directory
-mkdir -p "${MEOWCOIN_DATA_DIR}" || log_warning "Could not create data directory. If using a read-only filesystem, this is expected."
-log_info "Data directory created successfully"
+if mkdir -p "${MEOWCOIN_DATA_DIR}"; then
+    log_info "Data directory created successfully"
+else
+    log_warning "Could not create data directory. If using a read-only filesystem, this is expected."
+fi
 
 # Check if we're in a read-only filesystem
 log_info "Checking filesystem permissions..."
@@ -185,7 +188,15 @@ fi
 log_info "Loading RPC credentials..."
 RPC_USER=$(grep '^RPC_USER=' "$CREDENTIALS_FILE" | cut -d'=' -f2-)
 RPC_PASSWORD=$(grep '^RPC_PASSWORD=' "$CREDENTIALS_FILE" | cut -d'=' -f2-)
-log_info "Credentials loaded successfully"
+
+# Validate that credentials were loaded properly
+if [ -z "$RPC_USER" ] || [ -z "$RPC_PASSWORD" ]; then
+    log_error "Failed to load RPC credentials from $CREDENTIALS_FILE"
+    log_error "RPC_USER: '${RPC_USER:-empty}', RPC_PASSWORD: '${RPC_PASSWORD:+[set]}${RPC_PASSWORD:-empty}'"
+    exit 1
+else
+    log_info "Credentials loaded successfully (user: $RPC_USER)"
+fi
 
 # --- Configuration File Generation ---
 log_info "Checking configuration file..."
@@ -268,17 +279,26 @@ EOF
     fi
 
     # Set secure permissions for the config file
-    chmod 600 "${CONFIG_FILE}"
-    log_success "Configuration file generated with optimized settings."
+    if chmod 600 "${CONFIG_FILE}"; then
+        log_success "Configuration file generated with optimized settings."
+    else
+        log_error "Failed to set permissions on configuration file"
+        exit 1
+    fi
 else
-    log_success "Custom meowcoin.conf found. Using existing configuration."
+    log_info "Custom meowcoin.conf found. Using existing configuration."
 fi
 
 # Write version file if it doesn't exist
 if [ ! -f "${MEOWCOIN_DATA_DIR}/VERSION" ]; then
-    INSTALLED_VERSION=$(meowcoind --version | head -n1)
-    echo "${INSTALLED_VERSION}" > "${MEOWCOIN_DATA_DIR}/VERSION"
-    log_info "Version: ${INSTALLED_VERSION}"
+    log_info "Getting meowcoind version..."
+    if INSTALLED_VERSION=$(meowcoind --version | head -n1); then
+        echo "${INSTALLED_VERSION}" > "${MEOWCOIN_DATA_DIR}/VERSION"
+        log_info "Version: ${INSTALLED_VERSION}"
+    else
+        log_error "Failed to get meowcoind version - binary may be corrupted"
+        exit 1
+    fi
 fi
 
 # Validate binaries before starting daemon
