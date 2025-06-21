@@ -13,22 +13,33 @@ generate_random() {
     openssl rand -hex $((length/2))
 }
 
-# Function to log messages with colors
+# Function to log messages with colors and to file
 log_info() {
+    local msg="[INFO] $*"
     echo -e "\033[0;34m[INFO]\033[0m $*"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> /tmp/meowcoin-core.log
 }
 
 log_success() {
+    local msg="[SUCCESS] $*"
     echo -e "\033[0;32m[SUCCESS]\033[0m $*"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> /tmp/meowcoin-core.log
 }
 
 log_warning() {
+    local msg="[WARNING] $*"
     echo -e "\033[0;33m[WARNING]\033[0m $*" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> /tmp/meowcoin-core.log
 }
 
 log_error() {
+    local msg="[ERROR] $*"
     echo -e "\033[0;31m[ERROR]\033[0m $*" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> /tmp/meowcoin-core.log
 }
+
+# Start with a clear log file
+echo "=== Meowcoin Core Log Started at $(date) ===" > /tmp/meowcoin-core.log
 
 # Function to calculate optimal settings based on system resources
 calculate_optimal_settings() {

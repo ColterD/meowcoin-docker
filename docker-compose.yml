@@ -36,6 +36,8 @@ services:
       - meowcoin_data:/home/meowcoin/.meowcoin
       # Uncomment the line below to use a custom meowcoin.conf file
       # - ./path/to/your/meowcoin.conf:/home/meowcoin/.meowcoin/meowcoin.conf:ro
+      # Mount logs directory for easier access to logs
+      - meowcoin_logs:/tmp
     healthcheck:
       test: ["CMD", "/entrypoint.sh", "getblockchaininfo"]
       interval: 120s
@@ -89,6 +91,8 @@ services:
       - DEBUG=${DEBUG:-1}
     volumes:
       - meowcoin_data:/data:ro
+      # Mount logs directory for easier access to logs
+      - meowcoin_logs:/tmp
     healthcheck:
       test: ["CMD-SHELL", "nc -z meowcoin-core ${MEOWCOIN_RPC_PORT:-9766} -w 10 || nc -z meowcoin-node ${MEOWCOIN_RPC_PORT:-9766} -w 10 || nc -z localhost ${MEOWCOIN_RPC_PORT:-9766} -w 10 || nc -z 127.0.0.1 ${MEOWCOIN_RPC_PORT:-9766} -w 10"]
       interval: 60s
@@ -127,3 +131,6 @@ volumes:
   meowcoin_data:
     driver: local
     name: meowcoin_data
+  meowcoin_logs:
+    driver: local
+    name: meowcoin_logs

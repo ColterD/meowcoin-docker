@@ -1,22 +1,33 @@
 #!/bin/bash
 set -euo pipefail
 
-# Function to log messages with colors
+# Function to log messages with colors and to file
 log_info() {
+    local msg="[INFO] $*"
     echo -e "\033[0;34m[INFO]\033[0m $*"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> /tmp/meowcoin-monitor.log
 }
 
 log_success() {
+    local msg="[SUCCESS] $*"
     echo -e "\033[0;32m[SUCCESS]\033[0m $*"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> /tmp/meowcoin-monitor.log
 }
 
 log_warning() {
+    local msg="[WARNING] $*"
     echo -e "\033[0;33m[WARNING]\033[0m $*" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> /tmp/meowcoin-monitor.log
 }
 
 log_error() {
+    local msg="[ERROR] $*"
     echo -e "\033[0;31m[ERROR]\033[0m $*" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> /tmp/meowcoin-monitor.log
 }
+
+# Start with a clear log file
+echo "=== Meowcoin Monitor Log Started at $(date) ===" > /tmp/meowcoin-monitor.log
 
 # Function to check if RPC server is available
 check_rpc_available() {
@@ -104,6 +115,16 @@ fi
 # to be healthy before this container starts.
 
 while true; do
+    # Create a status file that can be accessed from outside
+    STATUS_FILE="/tmp/meowcoin-status.txt"
+    
+    # Start with a clean status file
+    echo "===================="  > "$STATUS_FILE"
+    echo "📊 Meowcoin Status"   >> "$STATUS_FILE"
+    echo "⏰ $(date)"           >> "$STATUS_FILE"
+    echo "====================" >> "$STATUS_FILE"
+    
+    # Also output to console
     echo ""
     echo "===================="
     echo "📊 Meowcoin Status"
@@ -112,7 +133,9 @@ while true; do
     
     # Check if RPC server is available
     if check_rpc_available; then
+        echo "RPC server available at ${RPC_HOST}:${MEOWCOIN_RPC_PORT}" >> "$STATUS_FILE"
         if [ -f "$CREDENTIALS_FILE" ]; then
+            echo "Credentials file found" >> "$STATUS_FILE"
             # Load credentials securely without executing the file
             RPC_USER=$(grep '^RPC_USER=' "$CREDENTIALS_FILE" | cut -d'=' -f2-)
             RPC_PASSWORD=$(grep '^RPC_PASSWORD=' "$CREDENTIALS_FILE" | cut -d'=' -f2-)
@@ -150,6 +173,15 @@ while true; do
                 echo "🌐 Connections:  ${CONNECTIONS}"
                 echo "💪 Difficulty:   ${DIFFICULTY}"
                 
+                # Also write to status file
+                echo "RPC Server:   ONLINE" >> "$STATUS_FILE"
+                echo "Version:      $(cat /data/VERSION 2>/dev/null || echo "Unknown")" >> "$STATUS_FILE"
+                echo "Blocks:       ${BLOCKS}" >> "$STATUS_FILE"
+                echo "Headers:      ${HEADERS}" >> "$STATUS_FILE"
+                echo "Sync:         ${SYNC_PERCENT}%" >> "$STATUS_FILE"
+                echo "Connections:  ${CONNECTIONS}" >> "$STATUS_FILE"
+                echo "Difficulty:   ${DIFFICULTY}" >> "$STATUS_FILE"
+                
                 # Get mempool info
                 MEMPOOL_JSON_RPC='{"jsonrpc":"1.0","id":"monitor","method":"getmempoolinfo","params":[]}'
                 
@@ -162,28 +194,38 @@ while true; do
                     MEMPOOL_MB=$(echo "${MEMPOOL_BYTES} / 1048576" | bc -l | awk '{printf "%.2f", $0}')
                     
                     echo "📝 Mempool:      ${MEMPOOL_SIZE} txs (${MEMPOOL_MB} MB)"
+                    echo "Mempool:      ${MEMPOOL_SIZE} txs (${MEMPOOL_MB} MB)" >> "$STATUS_FILE"
                 fi
             else
                 ERROR_MSG=$(echo "${RESPONSE}" | jq -r '.error.message // "Request failed or node is not ready"')
                 log_warning "RPC Status: UNHEALTHY or STARTING - ${ERROR_MSG}"
+                echo "RPC Status: UNHEALTHY or STARTING - ${ERROR_MSG}" >> "$STATUS_FILE"
             fi
         else
             log_warning "Credentials not found. Waiting for node to generate them..."
+            echo "Credentials not found. Waiting for node to generate them..." >> "$STATUS_FILE"
         fi
     else
         log_warning "RPC Server: OFFLINE or UNREACHABLE"
+        echo "RPC Server: OFFLINE or UNREACHABLE" >> "$STATUS_FILE"
     fi
     
     # Show disk usage of the data directory
     if [ -d /data ]; then
         SIZE=$(du -sh /data 2>/dev/null | cut -f1)
         echo "💾 Data Size:    ${SIZE}"
+        echo "Data Size:    ${SIZE}" >> "$STATUS_FILE"
         
         # Show file count in the data directory
         FILES=$(find /data -type f 2>/dev/null | wc -l)
         echo "📁 Files:        ${FILES}"
+        echo "Files:        ${FILES}" >> "$STATUS_FILE"
     fi
     
-    echo "===================="
+    echo "====================" 
+    echo "====================" >> "$STATUS_FILE"
+    
+    # Add timestamp to status file
+    echo "Status updated at: $(date)" >> "$STATUS_FILE"
     sleep "${MONITOR_INTERVAL}"
 done
