@@ -83,10 +83,12 @@ RUN chmod +x /entrypoint.sh && \
     mkdir -p /home/meowcoin/.meowcoin && \
     mkdir -p /var/log/meowcoin && \
     chown -R meowcoin:meowcoin /home/meowcoin/.meowcoin && \
-    chown -R meowcoin:meowcoin /var/log/meowcoin
+    chown -R meowcoin:meowcoin /var/log/meowcoin && \
+    chmod 755 /var/log/meowcoin
 
-# Define volume for persistent data
+# Define volumes for persistent data and logs
 VOLUME /home/meowcoin/.meowcoin
+VOLUME /var/log/meowcoin
 
 # Healthcheck removed - using docker-compose healthcheck instead
 

@@ -38,7 +38,16 @@ ensure_log_dir() {
             LOG_DIR="/tmp"
             LOG_FILE="${LOG_DIR}/meowcoin-core.log"
             echo "Warning: Could not create $LOG_DIR, using /tmp for logs"
+            return
         }
+    fi
+    
+    # Test if we can write to the log directory
+    if ! touch "$LOG_FILE" 2>/dev/null; then
+        # If we can't write to the log directory, fall back to /tmp
+        LOG_DIR="/tmp"
+        LOG_FILE="${LOG_DIR}/meowcoin-core.log"
+        echo "Warning: Cannot write to /var/log/meowcoin, using /tmp for logs"
     fi
 }
 

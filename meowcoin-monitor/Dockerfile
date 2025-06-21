@@ -29,10 +29,12 @@ RUN chmod +x /entrypoint.sh
 
 # Create data and log directories
 RUN mkdir -p /data && chown -R monitor:monitor /data && \
-    mkdir -p /var/log/meowcoin && chown -R monitor:monitor /var/log/meowcoin
+    mkdir -p /var/log/meowcoin && chown -R monitor:monitor /var/log/meowcoin && \
+    chmod 755 /var/log/meowcoin
 
-# Set volume
+# Set volumes
 VOLUME /data
+VOLUME /var/log/meowcoin
 
 # Add healthcheck
 HEALTHCHECK --interval=60s --timeout=20s --start-period=120s --retries=5 \
