@@ -144,23 +144,29 @@ fi
 log_info "Starting meowcoin daemon setup..."
 
 # --- Initial Setup ---
+log_info "Creating data directory: ${MEOWCOIN_DATA_DIR}"
 # Create the data directory
 mkdir -p "${MEOWCOIN_DATA_DIR}" || log_warning "Could not create data directory. If using a read-only filesystem, this is expected."
+log_info "Data directory created successfully"
 
 # Check if we're in a read-only filesystem
+log_info "Checking filesystem permissions..."
 touch "${MEOWCOIN_HOME}/.test_write" 2>/dev/null
 if [ $? -ne 0 ]; then
     log_info "Read-only filesystem detected, skipping ownership check"
 else
     rm -f "${MEOWCOIN_HOME}/.test_write"
+    log_info "Filesystem is writable, checking ownership..."
     # Check if the data directory is owned by meowcoin, if not, chown it
     if [ "$(stat -c '%u' "${MEOWCOIN_DATA_DIR}")" != "$(id -u meowcoin)" ]; then
         log_info "Fixing ownership of data directory..."
         chown -R meowcoin:meowcoin "${MEOWCOIN_HOME}" || log_warning "Could not change ownership. Continuing anyway."
     fi
+    log_info "Ownership check completed"
 fi
 
 # --- Credential Management ---
+log_info "Managing RPC credentials..."
 # Generate RPC credentials only if they don't exist
 if [ ! -f "$CREDENTIALS_FILE" ]; then
     log_info "First run: Generating new random RPC credentials..."
@@ -171,18 +177,25 @@ if [ ! -f "$CREDENTIALS_FILE" ]; then
     echo "RPC_PASSWORD=${RPC_PASSWORD}" >> "$CREDENTIALS_FILE"
     chmod 600 "$CREDENTIALS_FILE"
     log_success "Credentials generated and secured."
+else
+    log_info "Using existing RPC credentials"
 fi
 
 # Load credentials securely from the file without executing it
+log_info "Loading RPC credentials..."
 RPC_USER=$(grep '^RPC_USER=' "$CREDENTIALS_FILE" | cut -d'=' -f2-)
 RPC_PASSWORD=$(grep '^RPC_PASSWORD=' "$CREDENTIALS_FILE" | cut -d'=' -f2-)
+log_info "Credentials loaded successfully"
 
 # --- Configuration File Generation ---
+log_info "Checking configuration file..."
 if [ ! -f "${CONFIG_FILE}" ]; then
     log_info "No custom meowcoin.conf found. Generating a default one..."
 
     # Calculate optimal settings based on system resources
+    log_info "Calculating optimal settings..."
     eval "$(calculate_optimal_settings)"
+    log_info "Optimal settings calculated"
     
     # Source the environment variables with defaults
     : "${MEOWCOIN_RPC_PORT:=9766}"
@@ -269,12 +282,15 @@ if [ ! -f "${MEOWCOIN_DATA_DIR}/VERSION" ]; then
 fi
 
 # Validate binaries before starting daemon
+log_info "Validating meowcoin binaries..."
 if ! validate_binaries; then
     log_error "Binary validation failed, cannot start daemon"
     exit 1
 fi
+log_info "Binary validation successful"
 
-log_info "Starting Meowcoin daemon..."
+log_info "Starting Meowcoin daemon with command: $*"
+log_info "Switching to meowcoin user and executing daemon..."
 
 # Start the daemon as the non-root user
 exec gosu meowcoin "$@"
