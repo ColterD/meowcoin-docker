@@ -1,0 +1,25 @@
+# Git
+.git
+.gitignore
+
+# Docker
+.dockerignore
+docker-compose.yml
+
+# Documentation
+README.md
+CONTRIBUTING.md
+LICENSE
+
+# Tests
+test/
+
+# Temporary files
+*.log
+*.tmp
+*.swp
+*~
+
+# OS specific files
+.DS_Store
+Thumbs.db

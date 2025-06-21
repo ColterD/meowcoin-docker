@@ -144,8 +144,19 @@ if [ ! -f "${CONFIG_FILE}" ]; then
     log_info "- Max Mempool: ${MEOWCOIN_MAX_MEMPOOL} MB"
     log_info "- Max Connections: ${MEOWCOIN_MAX_CONNECTIONS}"
 
-    # Create the config file
-    cat > "${CONFIG_FILE}" <<EOF
+    # Create environment variables for the template
+    export MEOWCOIN_RPC_USER="${RPC_USER}"
+    export MEOWCOIN_RPC_PASSWORD="${RPC_PASSWORD}"
+    
+    # Check if template exists
+    if [ -f "/etc/meowcoin/meowcoin.conf.template" ]; then
+        log_info "Using configuration template from /etc/meowcoin/meowcoin.conf.template"
+        # Use envsubst to replace variables in the template
+        envsubst < "/etc/meowcoin/meowcoin.conf.template" > "${CONFIG_FILE}"
+    else
+        log_info "No template found, generating config file directly"
+        # Create the config file
+        cat > "${CONFIG_FILE}" <<EOF
 # RPC settings
 rpcuser=${RPC_USER}
 rpcpassword=${RPC_PASSWORD}
@@ -182,6 +193,7 @@ logtimestamps=1
 logips=1
 shrinkdebugfile=1
 EOF
+    fi
 
     # Set secure permissions for the config file
     chmod 600 "${CONFIG_FILE}"

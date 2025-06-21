@@ -4,6 +4,8 @@ FROM debian:bookworm-slim
 LABEL maintainer="Meowcoin Docker Maintainers"
 LABEL description="Meowcoin monitoring service"
 LABEL version="2.0"
+LABEL org.opencontainers.image.source="https://github.com/ColterD/meowcoin-docker"
+LABEL org.opencontainers.image.licenses="MIT"
 
 # Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -14,8 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     netcat-openbsd \
     tini \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user for the monitor
 RUN adduser --system --group --shell /bin/bash monitor

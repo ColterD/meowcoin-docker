@@ -118,7 +118,17 @@ fi
 
 echo "Downloading checksums..."
 if ! download_with_retry "${DOWNLOAD_SUMS_URL}" "meowcoin.tar.gz.sha256sum"; then
-  echo "Warning: Failed to download checksums. Skipping verification."
+  # If we're using a specific version, failing to download checksums is a critical error
+  if [ "${MEOWCOIN_VERSION}" != "latest" ]; then
+    echo "FATAL: Failed to download checksums for specific version ${MEOWCOIN_VERSION}. Aborting for security reasons."
+    exit 5
+  else
+    echo "Warning: Failed to download checksums. This is a security risk."
+    # Generate our own checksum for future reference
+    echo "Generating local checksum for reference..."
+    sha256sum meowcoin.tar.gz > meowcoin.tar.gz.local.sha256sum
+    echo "Local checksum saved to meowcoin.tar.gz.local.sha256sum"
+  fi
 else
   # Verify checksums
   echo "Verifying checksums..."
@@ -129,7 +139,8 @@ else
     echo "Checksum verification failed!"
     echo "Expected: $EXPECTED_CHECKSUM"
     echo "Actual:   $ACTUAL_CHECKSUM"
-    echo "Warning: Proceeding anyway, but the download may be corrupted."
+    echo "FATAL: Checksum verification failed. Aborting for security reasons."
+    exit 4
   else
     echo "Checksum verification successful!"
   fi
