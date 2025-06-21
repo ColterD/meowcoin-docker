@@ -43,6 +43,9 @@ docker compose logs -f meowcoin-core
 
 # Check status
 ./check-status.sh
+
+# Access internal logs
+docker exec meowcoin-node cat /tmp/meowcoin-core.log
 ```
 
 **If deployment fails with "container is unhealthy":**

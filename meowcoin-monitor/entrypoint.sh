@@ -1,30 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# Create log directory if it doesn't exist
-LOG_DIR="/var/log/meowcoin"
+# Use /tmp for logs to avoid permission issues
+LOG_DIR="/tmp"
 LOG_FILE="${LOG_DIR}/meowcoin-monitor.log"
-
-# Function to ensure log directory exists and is writable
-ensure_log_dir() {
-    if [ ! -d "$LOG_DIR" ]; then
-        mkdir -p "$LOG_DIR" 2>/dev/null || {
-            # If we can't create the log directory, fall back to /tmp
-            LOG_DIR="/tmp"
-            LOG_FILE="${LOG_DIR}/meowcoin-monitor.log"
-            echo "Warning: Could not create $LOG_DIR, using /tmp for logs"
-            return
-        }
-    fi
-    
-    # Test if we can write to the log directory
-    if ! touch "$LOG_FILE" 2>/dev/null; then
-        # If we can't write to the log directory, fall back to /tmp
-        LOG_DIR="/tmp"
-        LOG_FILE="${LOG_DIR}/meowcoin-monitor.log"
-        echo "Warning: Cannot write to /var/log/meowcoin, using /tmp for logs"
-    fi
-}
 
 # Function to log messages with colors and to file
 log_info() {
@@ -50,9 +29,6 @@ log_error() {
     echo -e "\033[0;31m[ERROR]\033[0m $*" >&2
     echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
 }
-
-# Ensure log directory exists
-ensure_log_dir
 
 # Start with a clear log file
 echo "=== Meowcoin Monitor Log Started at $(date) ===" > "$LOG_FILE"
@@ -148,7 +124,7 @@ fi
 
 while true; do
     # Create a status file that can be accessed from outside
-    STATUS_FILE="${LOG_DIR}/meowcoin-status.txt"
+    STATUS_FILE="/tmp/meowcoin-status.txt"
     
     # Start with a clean status file
     echo "===================="  > "$STATUS_FILE"
