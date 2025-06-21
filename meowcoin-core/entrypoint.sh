@@ -26,37 +26,32 @@ generate_random() {
     openssl rand -hex $((length/2))
 }
 
-# Use /tmp for logs to avoid permission issues
-LOG_DIR="/tmp"
-LOG_FILE="${LOG_DIR}/meowcoin-core.log"
-
-# Function to log messages with colors and to file
+# Simple logging functions that output to both console and file
 log_info() {
-    local msg="[INFO] $*"
-    echo -e "\033[0;34m[INFO]\033[0m $*"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
+    echo "[INFO] $*"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] $*" >> /tmp/meowcoin-core.log
 }
 
 log_success() {
-    local msg="[SUCCESS] $*"
-    echo -e "\033[0;32m[SUCCESS]\033[0m $*"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
+    echo "[SUCCESS] $*"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [SUCCESS] $*" >> /tmp/meowcoin-core.log
 }
 
 log_warning() {
-    local msg="[WARNING] $*"
-    echo -e "\033[0;33m[WARNING]\033[0m $*" >&2
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
+    echo "[WARNING] $*" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [WARNING] $*" >> /tmp/meowcoin-core.log
 }
 
 log_error() {
-    local msg="[ERROR] $*"
-    echo -e "\033[0;31m[ERROR]\033[0m $*" >&2
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
+    echo "[ERROR] $*" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] $*" >> /tmp/meowcoin-core.log
 }
 
 # Start with a clear log file
-echo "=== Meowcoin Core Log Started at $(date) ===" > "$LOG_FILE"
+echo "=== Meowcoin Core Log Started at $(date) ===" > /tmp/meowcoin-core.log
+
+log_info "Meowcoin Core container starting..."
+log_info "Arguments: $*"
 
 # Function to calculate optimal settings based on system resources
 calculate_optimal_settings() {
@@ -136,14 +131,17 @@ validate_binaries() {
 
 # If the first argument is not 'meowcoind', assume it's a meowcoin-cli command
 if [ "$1" != "meowcoind" ]; then
-    log_info "Running command: $*"
+    log_info "Running CLI command: $*"
     # Validate binaries before attempting to run CLI commands
     if ! validate_binaries; then
         log_error "Binary validation failed, cannot execute command"
         exit 1
     fi
+    log_info "Executing: gosu meowcoin meowcoin-cli -datadir=${MEOWCOIN_DATA_DIR} $*"
     exec gosu meowcoin meowcoin-cli -datadir="${MEOWCOIN_DATA_DIR}" "$@"
 fi
+
+log_info "Starting meowcoin daemon setup..."
 
 # --- Initial Setup ---
 # Create the data directory
