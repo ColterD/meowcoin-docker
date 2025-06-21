@@ -38,12 +38,18 @@ Copy `.env.example` to `.env` to customize settings like version, ports, and res
 # Check if containers are running
 docker compose ps
 
-# View logs
-docker compose logs meowcoin-core
+# View logs (most important for debugging)
+docker compose logs -f meowcoin-core
 
 # Check status
 ./check-status.sh
 ```
+
+**If deployment fails with "container is unhealthy":**
+1. Check logs: `docker compose logs meowcoin-core`
+2. The node needs 5-10 minutes to download and start
+3. Wait for "Meowcoin daemon..." message in logs
+4. If it keeps failing, try: `docker compose down && docker compose up -d`
 
 **Common issues:**
 - Build fails: Set specific version in `docker-compose.yml` instead of `latest`

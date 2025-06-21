@@ -104,6 +104,10 @@ check_rpc_available() {
 
 log_info "Meowcoin Monitor Starting..."
 
+# Wait for core service to be ready
+log_info "Waiting for core service to initialize..."
+sleep 30
+
 # --- Configuration ---
 MEOWCOIN_RPC_PORT=${MEOWCOIN_RPC_PORT:-9766}
 MONITOR_INTERVAL=${MONITOR_INTERVAL:-60}
