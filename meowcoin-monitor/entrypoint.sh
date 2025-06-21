@@ -20,8 +20,14 @@ log_error() {
 
 # Function to check if RPC server is available
 check_rpc_available() {
-    nc -z meowcoin-core "${MEOWCOIN_RPC_PORT}" -w 5
-    return $?
+    # Try both service name and container name
+    if nc -z meowcoin-core "${MEOWCOIN_RPC_PORT}" -w 5; then
+        return 0
+    elif nc -z meowcoin-node "${MEOWCOIN_RPC_PORT}" -w 5; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 log_info "Meowcoin Monitor Starting..."
@@ -50,7 +56,14 @@ while true; do
             
             # Perform a full, authenticated health check
             JSON_RPC='{"jsonrpc":"1.0","id":"monitor","method":"getblockchaininfo","params":[]}'
+            
+            # Try both service name and container name
             RESPONSE=$(curl -s --fail --user "${RPC_USER}:${RPC_PASSWORD}" --data-binary "${JSON_RPC}" "http://meowcoin-core:${MEOWCOIN_RPC_PORT}" 2>/dev/null)
+            
+            if [ $? -ne 0 ]; then
+                # Try with container name if service name fails
+                RESPONSE=$(curl -s --fail --user "${RPC_USER}:${RPC_PASSWORD}" --data-binary "${JSON_RPC}" "http://meowcoin-node:${MEOWCOIN_RPC_PORT}" 2>/dev/null)
+            fi
 
             if [ $? -eq 0 ] && echo "${RESPONSE}" | jq -e '.error == null' >/dev/null; then
                 BLOCKS=$(echo "${RESPONSE}" | jq '.result.blocks')
@@ -61,7 +74,14 @@ while true; do
                 
                 # Get network info for connections
                 NETWORK_JSON_RPC='{"jsonrpc":"1.0","id":"monitor","method":"getnetworkinfo","params":[]}'
+                
+                # Try both service name and container name
                 NETWORK_RESPONSE=$(curl -s --fail --user "${RPC_USER}:${RPC_PASSWORD}" --data-binary "${NETWORK_JSON_RPC}" "http://meowcoin-core:${MEOWCOIN_RPC_PORT}" 2>/dev/null)
+                
+                if [ $? -ne 0 ]; then
+                    # Try with container name if service name fails
+                    NETWORK_RESPONSE=$(curl -s --fail --user "${RPC_USER}:${RPC_PASSWORD}" --data-binary "${NETWORK_JSON_RPC}" "http://meowcoin-node:${MEOWCOIN_RPC_PORT}" 2>/dev/null)
+                fi
                 
                 if [ $? -eq 0 ] && echo "${NETWORK_RESPONSE}" | jq -e '.error == null' >/dev/null; then
                     CONNECTIONS=$(echo "${NETWORK_RESPONSE}" | jq '.result.connections')
@@ -79,7 +99,14 @@ while true; do
                 
                 # Get mempool info
                 MEMPOOL_JSON_RPC='{"jsonrpc":"1.0","id":"monitor","method":"getmempoolinfo","params":[]}'
+                
+                # Try both service name and container name
                 MEMPOOL_RESPONSE=$(curl -s --fail --user "${RPC_USER}:${RPC_PASSWORD}" --data-binary "${MEMPOOL_JSON_RPC}" "http://meowcoin-core:${MEOWCOIN_RPC_PORT}" 2>/dev/null)
+                
+                if [ $? -ne 0 ]; then
+                    # Try with container name if service name fails
+                    MEMPOOL_RESPONSE=$(curl -s --fail --user "${RPC_USER}:${RPC_PASSWORD}" --data-binary "${MEMPOOL_JSON_RPC}" "http://meowcoin-node:${MEOWCOIN_RPC_PORT}" 2>/dev/null)
+                fi
                 
                 if [ $? -eq 0 ] && echo "${MEMPOOL_RESPONSE}" | jq -e '.error == null' >/dev/null; then
                     MEMPOOL_SIZE=$(echo "${MEMPOOL_RESPONSE}" | jq '.result.size')

@@ -33,7 +33,7 @@ VOLUME /data
 
 # Add healthcheck
 HEALTHCHECK --interval=60s --timeout=20s --start-period=120s --retries=5 \
-  CMD nc -z meowcoin-core ${MEOWCOIN_RPC_PORT:-9766} -w 10 || exit 1
+  CMD nc -z meowcoin-core ${MEOWCOIN_RPC_PORT:-9766} -w 10 || nc -z meowcoin-node ${MEOWCOIN_RPC_PORT:-9766} -w 10 || exit 1
 
 # Switch to non-root user
 USER monitor
