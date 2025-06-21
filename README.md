@@ -98,6 +98,24 @@ By default, this project builds the `latest` official release of Meowcoin. If yo
     docker compose up -d --build
     ```
 
+### Environment Configuration
+
+For easier configuration management, you can create a `.env` file:
+
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit the configuration
+nano .env
+```
+
+The `.env` file allows you to customize:
+- Meowcoin version and architecture
+- Network ports and resource limits
+- Node configuration parameters
+- Monitor settings
+
 ### Custom Configuration
 
 This project is designed to be highly flexible. While it works out-of-the-box, you can customize it in several ways:
@@ -160,6 +178,13 @@ This project was built from the ground up with security as a top priority. It in
 
 ## Troubleshooting
 
+### Quick Status Check
+
+Use the provided status script to quickly diagnose issues:
+```bash
+./check-status.sh
+```
+
 ### Common Issues
 
 - **Build fails with GitHub API error**: Set a specific version in `docker-compose.yml` instead of using `latest`.
@@ -167,8 +192,20 @@ This project was built from the ground up with security as a top priority. It in
 - **RPC connection issues**: Verify the RPC port is correctly mapped and not blocked by a firewall.
 - **Template not found**: Ensure the `/etc/meowcoin` directory exists in the container and the template file is correctly copied.
 - **Monitor service not connecting**: Check if the monitor service can reach the core service with `docker compose exec meowcoin-monitor nc -z meowcoin-core 9766`.
+- **Log files not accessible**: Logs are now stored in `/var/log/meowcoin/` within containers and mounted to the `meowcoin_logs` volume.
 
-For more detailed troubleshooting, see the logs or open an issue on GitHub.
+### Accessing Logs
+
+```bash
+# View logs directly from containers
+docker exec meowcoin-node cat /var/log/meowcoin/meowcoin-core.log
+docker exec meowcoin-monitor cat /var/log/meowcoin/meowcoin-monitor.log
+
+# View current status
+docker exec meowcoin-monitor cat /var/log/meowcoin/meowcoin-status.txt
+```
+
+For comprehensive troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ## Contributing
 

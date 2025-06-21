@@ -1,6 +1,19 @@
 #!/bin/bash
 set -euo pipefail
 
+# Signal handling for graceful shutdown
+cleanup() {
+    log_info "Received shutdown signal, stopping Meowcoin daemon gracefully..."
+    if [ -n "${MEOWCOIN_PID:-}" ]; then
+        kill -TERM "$MEOWCOIN_PID" 2>/dev/null || true
+        wait "$MEOWCOIN_PID" 2>/dev/null || true
+    fi
+    log_info "Shutdown complete"
+    exit 0
+}
+
+trap cleanup SIGTERM SIGINT
+
 # Constants
 MEOWCOIN_HOME="/home/meowcoin"
 MEOWCOIN_DATA_DIR="${MEOWCOIN_HOME}/.meowcoin"
@@ -13,33 +26,52 @@ generate_random() {
     openssl rand -hex $((length/2))
 }
 
+# Create log directory if it doesn't exist
+LOG_DIR="/var/log/meowcoin"
+LOG_FILE="${LOG_DIR}/meowcoin-core.log"
+
+# Function to ensure log directory exists and is writable
+ensure_log_dir() {
+    if [ ! -d "$LOG_DIR" ]; then
+        mkdir -p "$LOG_DIR" 2>/dev/null || {
+            # If we can't create the log directory, fall back to /tmp
+            LOG_DIR="/tmp"
+            LOG_FILE="${LOG_DIR}/meowcoin-core.log"
+            echo "Warning: Could not create $LOG_DIR, using /tmp for logs"
+        }
+    fi
+}
+
 # Function to log messages with colors and to file
 log_info() {
     local msg="[INFO] $*"
     echo -e "\033[0;34m[INFO]\033[0m $*"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> /tmp/meowcoin-core.log
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
 }
 
 log_success() {
     local msg="[SUCCESS] $*"
     echo -e "\033[0;32m[SUCCESS]\033[0m $*"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> /tmp/meowcoin-core.log
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
 }
 
 log_warning() {
     local msg="[WARNING] $*"
     echo -e "\033[0;33m[WARNING]\033[0m $*" >&2
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> /tmp/meowcoin-core.log
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
 }
 
 log_error() {
     local msg="[ERROR] $*"
     echo -e "\033[0;31m[ERROR]\033[0m $*" >&2
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> /tmp/meowcoin-core.log
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
 }
 
+# Ensure log directory exists
+ensure_log_dir
+
 # Start with a clear log file
-echo "=== Meowcoin Core Log Started at $(date) ===" > /tmp/meowcoin-core.log
+echo "=== Meowcoin Core Log Started at $(date) ===" > "$LOG_FILE"
 
 # Function to calculate optimal settings based on system resources
 calculate_optimal_settings() {
@@ -100,9 +132,31 @@ calculate_optimal_settings() {
     echo "OPTIMAL_MAXCONNECTIONS=$maxconnections"
 }
 
+# Validate that required binaries exist and are executable
+validate_binaries() {
+    local binaries=("meowcoind" "meowcoin-cli")
+    for binary in "${binaries[@]}"; do
+        if ! command -v "$binary" >/dev/null 2>&1; then
+            log_error "Required binary '$binary' not found in PATH"
+            return 1
+        fi
+        if ! [ -x "$(command -v "$binary")" ]; then
+            log_error "Binary '$binary' is not executable"
+            return 1
+        fi
+    done
+    log_success "All required binaries are present and executable"
+    return 0
+}
+
 # If the first argument is not 'meowcoind', assume it's a meowcoin-cli command
 if [ "$1" != "meowcoind" ]; then
     log_info "Running command: $*"
+    # Validate binaries before attempting to run CLI commands
+    if ! validate_binaries; then
+        log_error "Binary validation failed, cannot execute command"
+        exit 1
+    fi
     exec gosu meowcoin meowcoin-cli -datadir="${MEOWCOIN_DATA_DIR}" "$@"
 fi
 
@@ -202,7 +256,11 @@ meowpow=${MEOWCOIN_MEOWPOW}
 # Security settings
 disablewallet=1
 listen=1
+# Bind to all interfaces for P2P, but RPC is restricted by rpcallowip
 bind=0.0.0.0
+# Only bind RPC to localhost and Docker networks for security
+rpcbind=127.0.0.1
+rpcbind=0.0.0.0
 dnsseed=1
 upnp=0
 
@@ -225,6 +283,12 @@ if [ ! -f "${MEOWCOIN_DATA_DIR}/VERSION" ]; then
     INSTALLED_VERSION=$(meowcoind --version | head -n1)
     echo "${INSTALLED_VERSION}" > "${MEOWCOIN_DATA_DIR}/VERSION"
     log_info "Version: ${INSTALLED_VERSION}"
+fi
+
+# Validate binaries before starting daemon
+if ! validate_binaries; then
+    log_error "Binary validation failed, cannot start daemon"
+    exit 1
 fi
 
 log_info "Starting Meowcoin daemon..."
