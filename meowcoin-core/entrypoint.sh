@@ -96,13 +96,20 @@ if [ "$1" != "meowcoind" ]; then
 fi
 
 # --- Initial Setup ---
-# Create the data directory and ensure permissions are correct on every start
-mkdir -p "${MEOWCOIN_DATA_DIR}"
+# Create the data directory
+mkdir -p "${MEOWCOIN_DATA_DIR}" || log_warning "Could not create data directory. If using a read-only filesystem, this is expected."
 
-# Check if the data directory is owned by meowcoin, if not, chown it
-if [ "$(stat -c '%u' "${MEOWCOIN_DATA_DIR}")" != "$(id -u meowcoin)" ]; then
-    log_info "Fixing ownership of data directory..."
-    chown -R meowcoin:meowcoin "${MEOWCOIN_HOME}"
+# Check if we're in a read-only filesystem
+touch "${MEOWCOIN_HOME}/.test_write" 2>/dev/null
+if [ $? -ne 0 ]; then
+    log_info "Read-only filesystem detected, skipping ownership check"
+else
+    rm -f "${MEOWCOIN_HOME}/.test_write"
+    # Check if the data directory is owned by meowcoin, if not, chown it
+    if [ "$(stat -c '%u' "${MEOWCOIN_DATA_DIR}")" != "$(id -u meowcoin)" ]; then
+        log_info "Fixing ownership of data directory..."
+        chown -R meowcoin:meowcoin "${MEOWCOIN_HOME}" || log_warning "Could not change ownership. Continuing anyway."
+    fi
 fi
 
 # --- Credential Management ---
