@@ -1,22 +1,38 @@
 FROM debian:bookworm-slim
 
-# Install dependencies, including bash for the entrypoint script
+# Add labels for better maintainability
+LABEL maintainer="Meowcoin Docker Maintainers"
+LABEL description="Meowcoin monitoring service"
+LABEL version="2.0"
+
+# Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    bc \
+    ca-certificates \
     curl \
     jq \
-    bc \
-    bash \
     netcat-openbsd \
-    && rm -rf /var/lib/apt/lists/*
+    tini \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Create a non-root user for the monitor
 RUN adduser --system --group --shell /bin/bash monitor
 
-# Copy the entrypoint script and make it executable in a single layer
-COPY --chmod=0755 meowcoin-monitor/entrypoint.sh /entrypoint.sh
+# Copy the entrypoint script and make it executable
+COPY meowcoin-monitor/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# Switch to the non-root user
+# Create data directory
+RUN mkdir -p /data && chown -R monitor:monitor /data
+
+# Set volume
+VOLUME /data
+
+# Switch to non-root user
 USER monitor
+WORKDIR /home/monitor
 
-# Set the entrypoint
-ENTRYPOINT ["/entrypoint.sh"] 
+# Use tini as init for proper signal handling
+ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]

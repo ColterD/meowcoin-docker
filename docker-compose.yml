@@ -35,7 +35,7 @@ services:
       # Uncomment the line below to use a custom meowcoin.conf file
       # - ./path/to/your/meowcoin.conf:/home/meowcoin/.meowcoin/meowcoin.conf:ro
     healthcheck:
-      test: ["CMD", "gosu", "meowcoin", "meowcoin-cli", "-datadir=/home/meowcoin/.meowcoin", "getblockchaininfo"]
+      test: ["CMD", "/entrypoint.sh", "getblockchaininfo"]
       interval: 60s
       timeout: 30s
       retries: 5
