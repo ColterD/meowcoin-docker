@@ -52,6 +52,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     tini \
     gnupg \
+    netcat-openbsd \
+    procps \
     && curl -L -o /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/1.17/gosu-amd64" \
     && chmod +x /usr/local/bin/gosu \
     && gosu --version \
@@ -84,9 +86,7 @@ RUN chmod +x /entrypoint.sh && \
 # Define volume for persistent data
 VOLUME /home/meowcoin/.meowcoin
 
-# Healthcheck to ensure the node is running and responsive
-HEALTHCHECK --interval=120s --timeout=60s --start-period=600s --retries=10 \
-  CMD gosu meowcoin meowcoin-cli -datadir=/home/meowcoin/.meowcoin getblockchaininfo || exit 1
+# Healthcheck removed - using docker-compose healthcheck instead
 
 # Use tini as init to handle signals properly
 ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]
