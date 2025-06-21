@@ -60,9 +60,17 @@ echo "Downloading checksums..."
 curl --fail -L -o SHA256SUMS.asc "${DOWNLOAD_SUMS_URL}"
 
 # GPG verification requires a temporary, isolated home directory
-export GNUPGHOME="$(mktemp -d)"
 echo "Verifying GPG signature..."
-gpg --keyserver keyserver.ubuntu.com --recv-keys "${MEOWCOIN_SIGNING_KEYS}"
+# Create a temporary directory for GPG so we don't pollute the container
+export GNUPGHOME="$(mktemp -d)"
+
+# Use a keyserver that supports requests over standard HTTPS (port 443)
+# to prevent issues in firewalled environments.
+echo "Importing GPG keys from keys.openpgp.org..."
+gpg --verbose --keyserver hkps://keys.openpgp.org --recv-keys "${MEOWCOIN_SIGNING_KEYS}"
+
+# Verify the signature of the checksums file
+echo "Verifying SHA256SUMS.asc..."
 gpg --verify SHA256SUMS.asc
 
 echo "Verifying checksum..."
