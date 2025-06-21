@@ -12,12 +12,12 @@ set -euo pipefail
 set -x
 
 # --- Arguments ---
-# The script expects the version and signing keys as arguments.
-MEOWCOIN_VERSION=${1:-latest}
-MEOWCOIN_SIGNING_KEYS=${2}
+# This script reads its configuration directly from environment variables
+# set by the Dockerfile's ARG instructions. This is more robust than
+# passing them as command-line arguments.
 
 if [ -z "${MEOWCOIN_SIGNING_KEYS}" ]; then
-  echo "Error: Meowcoin signing keys were not provided." >&2
+  echo "Error: MEOWCOIN_SIGNING_KEYS environment variable is not set." >&2
   exit 1
 fi
 
