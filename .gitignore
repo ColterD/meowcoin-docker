@@ -1,0 +1,17 @@
+# Local environment configuration
+.env
+
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker build cache
+.dockerignore
+**/Dockerfile.bak
+
+# Meowcoin data directory (if mounted directly)
+meowcoin_data/ 

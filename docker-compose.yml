@@ -1,0 +1,61 @@
+# Meowcoin Docker Compose
+#
+# This file defines the services to run a Meowcoin node and a monitor.
+# It is configured using variables from the .env file.
+
+services:
+  meowcoin-core:
+    build:
+      context: .
+      dockerfile: ./meowcoin-core/Dockerfile
+    container_name: meowcoin-node
+    hostname: meowcoin-core
+    restart: unless-stopped
+    environment:
+      # Pass config variables to the entrypoint script
+      - MEOWCOIN_RPC_PORT=${MEOWCOIN_RPC_PORT:-9766}
+      - MEOWCOIN_P2P_PORT=${MEOWCOIN_P2P_PORT:-8788}
+    ports:
+      - "127.0.0.1:${MEOWCOIN_RPC_PORT:-9766}:${MEOWCOIN_RPC_PORT:-9766}"
+      - "${MEOWCOIN_P2P_PORT:-8788}:${MEOWCOIN_P2P_PORT:-8788}"
+    volumes:
+      - meowcoin_data:/home/meowcoin/.meowcoin
+    healthcheck:
+      test: ["CMD", "gosu", "meowcoin", "meowcoin-cli", "-datadir=/home/meowcoin/.meowcoin", "getblockchaininfo"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 300s
+    deploy:
+      resources:
+        limits:
+          memory: ${RESOURCES_LIMIT_MEMORY:-4G}
+          cpus: '${RESOURCES_LIMIT_CPUS:-2.0}'
+        reservations:
+          memory: ${RESOURCES_RESERVATION_MEMORY:-2G}
+          cpus: '${RESOURCES_RESERVATION_CPUS:-0.5}'
+
+  meowcoin-monitor:
+    build:
+      context: .
+      dockerfile: ./meowcoin-monitor/Dockerfile
+    container_name: meowcoin-monitor
+    depends_on:
+      meowcoin-core:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - meowcoin_data:/data:ro
+    environment:
+      - MEOWCOIN_RPC_PORT=${MEOWCOIN_RPC_PORT:-9766}
+      - MONITOR_INTERVAL=${MONITOR_INTERVAL:-60}
+
+networks:
+  default:
+    driver: bridge
+    name: meowcoin-network
+
+volumes:
+  meowcoin_data:
+    driver: local
+    name: meowcoin_data
