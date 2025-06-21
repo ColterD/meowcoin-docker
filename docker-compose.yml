@@ -14,6 +14,9 @@ services:
     image: meowcoin-core:${MEOWCOIN_VERSION:-latest}
     container_name: meowcoin-node
     hostname: meowcoin-core
+    # Add explicit network configuration to ensure containers can communicate
+    networks:
+      - default
     restart: unless-stopped
     environment:
       # Pass config variables to the entrypoint script
@@ -76,14 +79,18 @@ services:
     depends_on:
       meowcoin-core:
         condition: service_started
+    # Add explicit network configuration to ensure containers can communicate
+    networks:
+      - default
     restart: unless-stopped
     environment:
       - MEOWCOIN_RPC_PORT=${MEOWCOIN_RPC_PORT:-9766}
       - MONITOR_INTERVAL=${MONITOR_INTERVAL:-60}
+      - DEBUG=${DEBUG:-1}
     volumes:
       - meowcoin_data:/data:ro
     healthcheck:
-      test: ["CMD-SHELL", "nc -z meowcoin-core ${MEOWCOIN_RPC_PORT:-9766} -w 10 || nc -z meowcoin-node ${MEOWCOIN_RPC_PORT:-9766} -w 10"]
+      test: ["CMD-SHELL", "nc -z meowcoin-core ${MEOWCOIN_RPC_PORT:-9766} -w 10 || nc -z meowcoin-node ${MEOWCOIN_RPC_PORT:-9766} -w 10 || nc -z localhost ${MEOWCOIN_RPC_PORT:-9766} -w 10 || nc -z 127.0.0.1 ${MEOWCOIN_RPC_PORT:-9766} -w 10"]
       interval: 60s
       timeout: 20s
       retries: 5
