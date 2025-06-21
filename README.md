@@ -48,7 +48,6 @@ docker compose logs meowcoin-core
 **Common issues:**
 - Build fails: Set specific version in `docker-compose.yml` instead of `latest`
 - Node won't start: Check logs for errors
-- "Container is unhealthy": Node is still starting, wait a few minutes
 - Can't connect: Verify ports aren't blocked by firewall
 
 

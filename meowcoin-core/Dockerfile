@@ -71,6 +71,7 @@ RUN groupadd -g "${MEOWCOIN_GID}" meowcoin && \
 COPY --from=fetcher /downloads/meowcoin-*/bin/meowcoind /usr/local/bin/
 COPY --from=fetcher /downloads/meowcoin-*/bin/meowcoin-cli /usr/local/bin/
 COPY meowcoin-core/entrypoint.sh /entrypoint.sh
+COPY meowcoin-core/healthcheck.sh /healthcheck.sh
 
 # Create config directory and copy template
 RUN mkdir -p /etc/meowcoin
@@ -78,6 +79,7 @@ COPY config/meowcoin.conf.template /etc/meowcoin/meowcoin.conf.template
 
 # Set permissions and create data and log directories
 RUN chmod +x /entrypoint.sh && \
+    chmod +x /healthcheck.sh && \
     mkdir -p /home/meowcoin/.meowcoin && \
     mkdir -p /var/log/meowcoin && \
     chown -R meowcoin:meowcoin /home/meowcoin/.meowcoin && \

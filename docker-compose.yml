@@ -39,11 +39,11 @@ services:
       # Mount logs directory for easier access to logs
       - meowcoin_logs:/var/log/meowcoin
     healthcheck:
-      test: ["CMD-SHELL", "pgrep meowcoind || exit 1"]
+      test: ["CMD", "/healthcheck.sh"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 180s
     read_only: true
     tmpfs:
       - /tmp
@@ -79,7 +79,8 @@ services:
     image: meowcoin-monitor:latest
     container_name: meowcoin-monitor
     depends_on:
-      - meowcoin-core
+      meowcoin-core:
+        condition: service_healthy
     # Add explicit network configuration to ensure containers can communicate
     networks:
       - default
