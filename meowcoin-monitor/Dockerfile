@@ -27,8 +27,9 @@ RUN adduser --system --group --shell /bin/bash monitor
 COPY meowcoin-monitor/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Create data directory
-RUN mkdir -p /data && chown -R monitor:monitor /data
+# Create data and log directories
+RUN mkdir -p /data && chown -R monitor:monitor /data && \
+    mkdir -p /var/log/meowcoin && chown -R monitor:monitor /var/log/meowcoin
 
 # Set volume
 VOLUME /data

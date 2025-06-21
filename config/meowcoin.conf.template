@@ -25,7 +25,11 @@ meowpow=${MEOWCOIN_MEOWPOW}
 # Security settings
 disablewallet=1
 listen=1
+# Bind to all interfaces for P2P, but RPC is restricted by rpcallowip
 bind=0.0.0.0
+# Only bind RPC to localhost and Docker networks for security
+rpcbind=127.0.0.1
+rpcbind=0.0.0.0
 dnsseed=1
 upnp=0
 

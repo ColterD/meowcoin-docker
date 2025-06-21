@@ -74,10 +74,12 @@ COPY meowcoin-core/entrypoint.sh /entrypoint.sh
 RUN mkdir -p /etc/meowcoin
 COPY config/meowcoin.conf.template /etc/meowcoin/meowcoin.conf.template
 
-# Set permissions and create data directory
+# Set permissions and create data and log directories
 RUN chmod +x /entrypoint.sh && \
     mkdir -p /home/meowcoin/.meowcoin && \
-    chown -R meowcoin:meowcoin /home/meowcoin/.meowcoin
+    mkdir -p /var/log/meowcoin && \
+    chown -R meowcoin:meowcoin /home/meowcoin/.meowcoin && \
+    chown -R meowcoin:meowcoin /var/log/meowcoin
 
 # Define volume for persistent data
 VOLUME /home/meowcoin/.meowcoin

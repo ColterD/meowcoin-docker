@@ -93,9 +93,17 @@ fi
 
 # If we don't have URLs yet (either because we're using a specific version or the API call failed)
 if [ -z "${DOWNLOAD_URL:-}" ] || [ -z "${DOWNLOAD_SUMS_URL:-}" ]; then
-  # Construct URLs for a specific version
+  # Try to construct URLs for a specific version
+  # First try with the commit hash pattern
   DOWNLOAD_URL="https://github.com/Meowcoin-Foundation/Meowcoin/releases/download/Meow-v${MEOWCOIN_VERSION}/meowcoin-${MEOWCOIN_VERSION}-673684e10-${MEOWCOIN_ARCH}.tar.gz"
   DOWNLOAD_SUMS_URL="https://github.com/Meowcoin-Foundation/Meowcoin/releases/download/Meow-v${MEOWCOIN_VERSION}/meowcoin-${MEOWCOIN_VERSION}-673684e10-${MEOWCOIN_ARCH}.tar.gz.sha256sum"
+  
+  # If that doesn't work, try without the commit hash
+  if ! curl --head --fail --silent "${DOWNLOAD_URL}" >/dev/null 2>&1; then
+    echo "Trying alternative URL pattern without commit hash..."
+    DOWNLOAD_URL="https://github.com/Meowcoin-Foundation/Meowcoin/releases/download/Meow-v${MEOWCOIN_VERSION}/meowcoin-${MEOWCOIN_VERSION}-${MEOWCOIN_ARCH}.tar.gz"
+    DOWNLOAD_SUMS_URL="https://github.com/Meowcoin-Foundation/Meowcoin/releases/download/Meow-v${MEOWCOIN_VERSION}/meowcoin-${MEOWCOIN_VERSION}-${MEOWCOIN_ARCH}.tar.gz.sha256sum"
+  fi
 fi
 
 # Final check to ensure URLs were determined successfully
