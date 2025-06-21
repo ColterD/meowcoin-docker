@@ -187,10 +187,18 @@ if [ ! -f "$CREDENTIALS_FILE" ]; then
     RPC_USER="meow-$(generate_random 8)"
     RPC_PASSWORD=$(generate_random 32)
     
-    echo "RPC_USER=${RPC_USER}" > "$CREDENTIALS_FILE"
-    echo "RPC_PASSWORD=${RPC_PASSWORD}" >> "$CREDENTIALS_FILE"
-    chmod 600 "$CREDENTIALS_FILE"
-    log_success "Credentials generated and secured."
+    # Try to write credentials file, with fallback to /tmp if volume has permission issues
+    if echo "RPC_USER=${RPC_USER}" > "$CREDENTIALS_FILE" 2>/dev/null && echo "RPC_PASSWORD=${RPC_PASSWORD}" >> "$CREDENTIALS_FILE" 2>/dev/null; then
+        chmod 600 "$CREDENTIALS_FILE" 2>/dev/null || log_warning "Could not set secure permissions on credentials file"
+        log_success "Credentials generated and secured in data directory."
+    else
+        log_warning "Cannot write to data directory, using temporary credentials file"
+        CREDENTIALS_FILE="/tmp/.credentials"
+        echo "RPC_USER=${RPC_USER}" > "$CREDENTIALS_FILE"
+        echo "RPC_PASSWORD=${RPC_PASSWORD}" >> "$CREDENTIALS_FILE"
+        chmod 600 "$CREDENTIALS_FILE" 2>/dev/null || true
+        log_info "Credentials stored in temporary location: $CREDENTIALS_FILE"
+    fi
 else
     log_info "Using existing RPC credentials"
 fi
@@ -242,11 +250,15 @@ if [ ! -f "${CONFIG_FILE}" ]; then
     if [ -f "/etc/meowcoin/meowcoin.conf.template" ]; then
         log_info "Using configuration template from /etc/meowcoin/meowcoin.conf.template"
         # Use envsubst to replace variables in the template
-        envsubst < "/etc/meowcoin/meowcoin.conf.template" > "${CONFIG_FILE}"
+        if ! envsubst < "/etc/meowcoin/meowcoin.conf.template" > "${CONFIG_FILE}" 2>/dev/null; then
+            log_warning "Cannot write to data directory, using temporary config file"
+            CONFIG_FILE="/tmp/meowcoin.conf"
+            envsubst < "/etc/meowcoin/meowcoin.conf.template" > "${CONFIG_FILE}"
+        fi
     else
         log_info "No template found, generating config file directly"
-        # Create the config file
-        cat > "${CONFIG_FILE}" <<EOF
+        # Try to create the config file, with fallback to /tmp
+        if ! cat > "${CONFIG_FILE}" 2>/dev/null <<EOF; then
 # RPC settings
 rpcuser=${RPC_USER}
 rpcpassword=${RPC_PASSWORD}
@@ -287,6 +299,50 @@ logtimestamps=1
 logips=1
 shrinkdebugfile=1
 EOF
+            log_warning "Cannot write to data directory, using temporary config file"
+            CONFIG_FILE="/tmp/meowcoin.conf"
+            cat > "${CONFIG_FILE}" <<EOF
+# RPC settings
+rpcuser=${RPC_USER}
+rpcpassword=${RPC_PASSWORD}
+rpcallowip=127.0.0.1
+rpcallowip=172.16.0.0/12
+rpcallowip=192.168.0.0/16
+rpcport=${MEOWCOIN_RPC_PORT}
+rpcthreads=8
+rpcworkqueue=64
+
+# P2P settings
+port=${MEOWCOIN_P2P_PORT}
+maxconnections=${MEOWCOIN_MAX_CONNECTIONS}
+bantime=${MEOWCOIN_BANTIME}
+
+# Performance settings
+dbcache=${MEOWCOIN_DB_CACHE}
+maxmempool=${MEOWCOIN_MAX_MEMPOOL}
+par=2
+
+# Feature settings
+txindex=${MEOWCOIN_TXINDEX}
+meowpow=${MEOWCOIN_MEOWPOW}
+
+# Security settings
+disablewallet=1
+listen=1
+# Bind to all interfaces for P2P, but RPC is restricted by rpcallowip
+bind=0.0.0.0
+# Only bind RPC to localhost and Docker networks for security
+rpcbind=127.0.0.1
+rpcbind=0.0.0.0
+dnsseed=1
+upnp=0
+
+# Logging settings
+logtimestamps=1
+logips=1
+shrinkdebugfile=1
+EOF
+        fi
     fi
 
     # Set secure permissions for the config file
@@ -321,7 +377,8 @@ fi
 log_info "Binary validation successful"
 
 log_info "Starting Meowcoin daemon with command: $*"
+log_info "Using config file: ${CONFIG_FILE}"
 log_info "Switching to meowcoin user and executing daemon..."
 
-# Start the daemon as the non-root user
-exec gosu meowcoin "$@"
+# Start the daemon as the non-root user with explicit config file
+exec gosu meowcoin meowcoind -conf="${CONFIG_FILE}" -datadir="${MEOWCOIN_DATA_DIR}"
