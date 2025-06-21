@@ -39,11 +39,11 @@ services:
       # Mount logs directory for easier access to logs
       - meowcoin_logs:/var/log/meowcoin
     healthcheck:
-      test: ["CMD", "/entrypoint.sh", "getblockchaininfo"]
-      interval: 120s
-      timeout: 60s
-      retries: 10
-      start_period: 600s
+      test: ["CMD", "/healthcheck.sh"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 180s
     read_only: true
     tmpfs:
       - /tmp
