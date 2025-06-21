@@ -1,40 +1,121 @@
 #!/bin/bash
 set -euo pipefail
 
+# Constants
 MEOWCOIN_HOME="/home/meowcoin"
 MEOWCOIN_DATA_DIR="${MEOWCOIN_HOME}/.meowcoin"
 CREDENTIALS_FILE="${MEOWCOIN_DATA_DIR}/.credentials"
 CONFIG_FILE="${MEOWCOIN_DATA_DIR}/meowcoin.conf"
 
+# Function to generate secure random string
+generate_random() {
+    local length=$1
+    openssl rand -hex $((length/2))
+}
+
+# Function to log messages with colors
+log_info() {
+    echo -e "\033[0;34m[INFO]\033[0m $*"
+}
+
+log_success() {
+    echo -e "\033[0;32m[SUCCESS]\033[0m $*"
+}
+
+log_warning() {
+    echo -e "\033[0;33m[WARNING]\033[0m $*" >&2
+}
+
+log_error() {
+    echo -e "\033[0;31m[ERROR]\033[0m $*" >&2
+}
+
+# Function to calculate optimal settings based on system resources
+calculate_optimal_settings() {
+    # Get available memory in MB
+    local mem_total
+    if [ -f /proc/meminfo ]; then
+        mem_total=$(grep MemTotal /proc/meminfo | awk '{print int($2/1024)}')
+    else
+        # Default to 4GB if we can't determine
+        mem_total=4096
+    fi
+    
+    # Get number of CPU cores
+    local cpu_cores
+    if [ -f /proc/cpuinfo ]; then
+        cpu_cores=$(grep -c ^processor /proc/cpuinfo)
+    else
+        # Default to 2 if we can't determine
+        cpu_cores=2
+    fi
+    
+    # Calculate optimal dbcache (25% of RAM, min 128MB, max 4GB)
+    local dbcache=$((mem_total / 4))
+    if [ $dbcache -lt 128 ]; then
+        dbcache=128
+    elif [ $dbcache -gt 4096 ]; then
+        dbcache=4096
+    fi
+    
+    # Calculate optimal maxmempool (10% of RAM, min 50MB, max 1GB)
+    local maxmempool=$((mem_total / 10))
+    if [ $maxmempool -lt 50 ]; then
+        maxmempool=50
+    elif [ $maxmempool -gt 1000 ]; then
+        maxmempool=1000
+    fi
+    
+    # Calculate optimal maxconnections (based on CPU cores and RAM)
+    local maxconnections=$((cpu_cores * 10))
+    if [ $mem_total -lt 1024 ]; then
+        # Less than 1GB RAM
+        maxconnections=$((maxconnections / 2))
+    elif [ $mem_total -gt 8192 ]; then
+        # More than 8GB RAM
+        maxconnections=$((maxconnections * 2))
+    fi
+    
+    # Minimum 10, maximum 125
+    if [ $maxconnections -lt 10 ]; then
+        maxconnections=10
+    elif [ $maxconnections -gt 125 ]; then
+        maxconnections=125
+    fi
+    
+    # Return calculated values
+    echo "OPTIMAL_DBCACHE=$dbcache"
+    echo "OPTIMAL_MAXMEMPOOL=$maxmempool"
+    echo "OPTIMAL_MAXCONNECTIONS=$maxconnections"
+}
+
 # If the first argument is not 'meowcoind', assume it's a meowcoin-cli command
 if [ "$1" != "meowcoind" ]; then
-  # Ensure the user has access to the data dir for cli commands
-  exec gosu meowcoin meowcoin-cli -datadir="${MEOWCOIN_DATA_DIR}" "$@"
+    log_info "Running command: $*"
+    exec gosu meowcoin meowcoin-cli -datadir="${MEOWCOIN_DATA_DIR}" "$@"
 fi
 
 # --- Initial Setup ---
-# Create the data directory and ensure permissions are correct on every start.
-# This covers all necessary files and subdirectories.
+# Create the data directory and ensure permissions are correct on every start
 mkdir -p "${MEOWCOIN_DATA_DIR}"
 
-# Check if the data directory is owned by meowcoin, if not, chown it.
-# This avoids a slow recursive chown on every startup.
+# Check if the data directory is owned by meowcoin, if not, chown it
 if [ "$(stat -c '%u' "${MEOWCOIN_DATA_DIR}")" != "$(id -u meowcoin)" ]; then
-  echo "Ownership of data directory is incorrect, fixing..."
-  chown -R meowcoin:meowcoin "${MEOWCOIN_HOME}"
+    log_info "Fixing ownership of data directory..."
+    chown -R meowcoin:meowcoin "${MEOWCOIN_HOME}"
 fi
 
 # --- Credential Management ---
-# Generate RPC credentials only if they don't exist.
+# Generate RPC credentials only if they don't exist
 if [ ! -f "$CREDENTIALS_FILE" ]; then
-  echo "🔑 First run: Generating new random RPC credentials..."
-  RPC_USER="meow-$(openssl rand -hex 4)"
-  RPC_PASSWORD=$(openssl rand -hex 32)
-  
-  echo "RPC_USER=${RPC_USER}" > "$CREDENTIALS_FILE"
-  echo "RPC_PASSWORD=${RPC_PASSWORD}" >> "$CREDENTIALS_FILE"
-  chmod 600 "$CREDENTIALS_FILE"
-  echo "✅ Credentials generated and secured."
+    log_info "First run: Generating new random RPC credentials..."
+    RPC_USER="meow-$(generate_random 8)"
+    RPC_PASSWORD=$(generate_random 32)
+    
+    echo "RPC_USER=${RPC_USER}" > "$CREDENTIALS_FILE"
+    echo "RPC_PASSWORD=${RPC_PASSWORD}" >> "$CREDENTIALS_FILE"
+    chmod 600 "$CREDENTIALS_FILE"
+    log_success "Credentials generated and secured."
 fi
 
 # Load credentials securely from the file without executing it
@@ -43,26 +124,37 @@ RPC_PASSWORD=$(grep '^RPC_PASSWORD=' "$CREDENTIALS_FILE" | cut -d'=' -f2-)
 
 # --- Configuration File Generation ---
 if [ ! -f "${CONFIG_FILE}" ]; then
-  echo "⚙️  No custom meowcoin.conf found. Generating a default one..."
+    log_info "No custom meowcoin.conf found. Generating a default one..."
 
-  # Source the environment variables with defaults.
-  : "${MEOWCOIN_RPC_PORT:=9766}"
-  : "${MEOWCOIN_P2P_PORT:=8788}"
-  : "${MEOWCOIN_MAX_CONNECTIONS:=100}"
-  : "${MEOWCOIN_DB_CACHE:=1024}"
-  : "${MEOWCOIN_MAX_MEMPOOL:=300}"
-  : "${MEOWCOIN_TXINDEX:=1}"
-  : "${MEOWCOIN_MEOWPOW:=1}"
-  : "${MEOWCOIN_BANTIME:=86400}"
+    # Calculate optimal settings based on system resources
+    eval "$(calculate_optimal_settings)"
+    
+    # Source the environment variables with defaults
+    : "${MEOWCOIN_RPC_PORT:=9766}"
+    : "${MEOWCOIN_P2P_PORT:=8788}"
+    : "${MEOWCOIN_MAX_CONNECTIONS:=$OPTIMAL_MAXCONNECTIONS}"
+    : "${MEOWCOIN_DB_CACHE:=$OPTIMAL_DBCACHE}"
+    : "${MEOWCOIN_MAX_MEMPOOL:=$OPTIMAL_MAXMEMPOOL}"
+    : "${MEOWCOIN_TXINDEX:=1}"
+    : "${MEOWCOIN_MEOWPOW:=1}"
+    : "${MEOWCOIN_BANTIME:=86400}"
 
-  # Use a heredoc to create the config file cleanly.
-  # This is simpler and more readable than using sed/envsubst.
-  cat > "${CONFIG_FILE}" <<EOF
+    log_info "Using optimized settings:"
+    log_info "- Database Cache: ${MEOWCOIN_DB_CACHE} MB"
+    log_info "- Max Mempool: ${MEOWCOIN_MAX_MEMPOOL} MB"
+    log_info "- Max Connections: ${MEOWCOIN_MAX_CONNECTIONS}"
+
+    # Create the config file
+    cat > "${CONFIG_FILE}" <<EOF
 # RPC settings
 rpcuser=${RPC_USER}
 rpcpassword=${RPC_PASSWORD}
-rpcallowip=::/0
+rpcallowip=127.0.0.1
+rpcallowip=172.16.0.0/12
+rpcallowip=192.168.0.0/16
 rpcport=${MEOWCOIN_RPC_PORT}
+rpcthreads=8
+rpcworkqueue=64
 
 # P2P settings
 port=${MEOWCOIN_P2P_PORT}
@@ -72,26 +164,40 @@ bantime=${MEOWCOIN_BANTIME}
 # Performance settings
 dbcache=${MEOWCOIN_DB_CACHE}
 maxmempool=${MEOWCOIN_MAX_MEMPOOL}
+par=2
 
 # Feature settings
 txindex=${MEOWCOIN_TXINDEX}
 meowpow=${MEOWCOIN_MEOWPOW}
+
+# Security settings
+disablewallet=1
+listen=1
+bind=0.0.0.0
+dnsseed=1
+upnp=0
+
+# Logging settings
+logtimestamps=1
+logips=1
+shrinkdebugfile=1
 EOF
 
-  # Set secure permissions for the config file
-  chmod 600 "${CONFIG_FILE}"
+    # Set secure permissions for the config file
+    chmod 600 "${CONFIG_FILE}"
+    log_success "Configuration file generated with optimized settings."
 else
-  echo "✅ Custom meowcoin.conf found. Skipping generation."
+    log_success "Custom meowcoin.conf found. Using existing configuration."
 fi
 
 # Write version file if it doesn't exist
 if [ ! -f "${MEOWCOIN_DATA_DIR}/VERSION" ]; then
-  INSTALLED_VERSION=$(meowcoind --version | head -n1)
-  echo "${INSTALLED_VERSION}" > "${MEOWCOIN_DATA_DIR}/VERSION"
-  echo "📌 Version: ${INSTALLED_VERSION}"
+    INSTALLED_VERSION=$(meowcoind --version | head -n1)
+    echo "${INSTALLED_VERSION}" > "${MEOWCOIN_DATA_DIR}/VERSION"
+    log_info "Version: ${INSTALLED_VERSION}"
 fi
 
-echo "🚀 Starting Meowcoin daemon..."
+log_info "Starting Meowcoin daemon..."
 
 # Start the daemon as the non-root user
 exec gosu meowcoin "$@"
