@@ -83,7 +83,7 @@ RUN chmod +x /entrypoint.sh && \
 VOLUME /home/meowcoin/.meowcoin
 
 # Healthcheck to ensure the node is running and responsive
-HEALTHCHECK --interval=60s --timeout=30s --start-period=300s --retries=5 \
+HEALTHCHECK --interval=120s --timeout=60s --start-period=600s --retries=10 \
   CMD gosu meowcoin meowcoin-cli -datadir=/home/meowcoin/.meowcoin getblockchaininfo || exit 1
 
 # Use tini as init to handle signals properly
