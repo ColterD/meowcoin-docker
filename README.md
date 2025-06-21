@@ -112,6 +112,20 @@ This project is designed to be highly flexible. While it works out-of-the-box, y
      ```
   The entrypoint script will detect your custom file and skip the default generation.
 
+To use a specific version of Meowcoin Core, you can set the `MEOWCOIN_VERSION` build argument in the `docker-compose.yml` file.
+
+```yaml
+services:
+  meowcoin-core:
+    build:
+      args:
+        # For the most reliable builds, uncomment the line below and set a specific version.
+        # Find available versions on the Meowcoin GitHub releases page.
+        # MEOWCOIN_VERSION: 4.1.0
+```
+
+**Note on Using `latest`**: By default, the build will pull the `latest` version. This is convenient, but it relies on making a network request to the GitHub API. In automated environments like Portainer or in case of network issues, this API call can occasionally fail, causing the build to stop. **For production use, it is strongly recommended to pin to a specific version number.**
+
 ## Security Features
 
 This project was built from the ground up with security as a top priority. It incorporates a multi-layered defense strategy aligned with the [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html).

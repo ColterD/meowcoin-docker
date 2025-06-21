@@ -16,21 +16,26 @@ ARG MEOWCOIN_SIGNING_KEYS="1D4428469865B21B2123B4409D334999B8B35B42"
 WORKDIR /downloads
 
 # Download and extract the specified or latest Meowcoin release
-RUN if [ "${MEOWCOIN_VERSION}" = "latest" ]; then \
-      RELEASE_URL=$(curl -s https://api.github.com/repos/Meowcoin-Foundation/Meowcoin/releases/latest); \
+RUN set -x && \
+    if [ "${MEOWCOIN_VERSION}" = "latest" ]; then \
+      RELEASE_URL=$(curl -s --fail https://api.github.com/repos/Meowcoin-Foundation/Meowcoin/releases/latest); \
       DOWNLOAD_URL=$(echo "${RELEASE_URL}" | jq -r ".assets[] | select(.name | test(\\"x86_64-linux-gnu.tar.gz$\\")) | .browser_download_url"); \
       DOWNLOAD_SUMS_URL=$(echo "${RELEASE_URL}" | jq -r ".assets[] | select(.name | test(\\"SHA256SUMS.asc$\\")) | .browser_download_url"); \
     else \
       DOWNLOAD_URL="https://github.com/Meowcoin-Foundation/Meowcoin/releases/download/v${MEOWCOIN_VERSION}/meowcoin-${MEOWCOIN_VERSION}-x86_64-linux-gnu.tar.gz"; \
       DOWNLOAD_SUMS_URL="https://github.com/Meowcoin-Foundation/Meowcoin/releases/download/v${MEOWCOIN_VERSION}/SHA256SUMS.asc"; \
     fi && \
+    if [ -z "${DOWNLOAD_URL}" ] || [ -z "${DOWNLOAD_SUMS_URL}" ]; then \
+      echo "Error: Could not determine download URL. Please check MEOWCOIN_VERSION and network connectivity." >&2; \
+      exit 1; \
+    fi && \
     echo "Downloading Meowcoin release from: ${DOWNLOAD_URL}" && \
-    curl -L -o meowcoin.tar.gz "${DOWNLOAD_URL}" && \
-    curl -L -o SHA256SUMS.asc "${DOWNLOAD_SUMS_URL}" && \
+    curl --fail -L -o meowcoin.tar.gz "${DOWNLOAD_URL}" && \
+    curl --fail -L -o SHA256SUMS.asc "${DOWNLOAD_SUMS_URL}" && \
     \
     echo "Verifying GPG signature..." && \
     export GNUPGHOME="$(mktemp -d)" && \
-    gpg --keyserver hkps://keys.openpgp.org --recv-keys ${MEOWCOIN_SIGNING_KEYS} && \
+    gpg --keyserver keyserver.ubuntu.com --recv-keys ${MEOWCOIN_SIGNING_KEYS} && \
     gpg --verify SHA256SUMS.asc && \
     \
     echo "Verifying checksum..." && \
