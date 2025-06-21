@@ -1,37 +1,29 @@
 #!/bin/bash
 set -euo pipefail
 
-# Use /tmp for logs to avoid permission issues
-LOG_DIR="/tmp"
-LOG_FILE="${LOG_DIR}/meowcoin-monitor.log"
-
-# Function to log messages with colors and to file
+# Simple logging functions
 log_info() {
-    local msg="[INFO] $*"
-    echo -e "\033[0;34m[INFO]\033[0m $*"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
+    echo "[INFO] $*"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] $*" >> /tmp/meowcoin-monitor.log
 }
 
 log_success() {
-    local msg="[SUCCESS] $*"
-    echo -e "\033[0;32m[SUCCESS]\033[0m $*"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
+    echo "[SUCCESS] $*"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [SUCCESS] $*" >> /tmp/meowcoin-monitor.log
 }
 
 log_warning() {
-    local msg="[WARNING] $*"
-    echo -e "\033[0;33m[WARNING]\033[0m $*" >&2
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
+    echo "[WARNING] $*" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [WARNING] $*" >> /tmp/meowcoin-monitor.log
 }
 
 log_error() {
-    local msg="[ERROR] $*"
-    echo -e "\033[0;31m[ERROR]\033[0m $*" >&2
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >> "$LOG_FILE"
+    echo "[ERROR] $*" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] $*" >> /tmp/meowcoin-monitor.log
 }
 
 # Start with a clear log file
-echo "=== Meowcoin Monitor Log Started at $(date) ===" > "$LOG_FILE"
+echo "=== Meowcoin Monitor Log Started at $(date) ===" > /tmp/meowcoin-monitor.log
 
 # Function to check if RPC server is available
 check_rpc_available() {
@@ -88,6 +80,7 @@ check_rpc_available() {
 }
 
 log_info "Meowcoin Monitor Starting..."
+log_info "Monitor container started successfully"
 
 # Wait for core service to be ready
 log_info "Waiting for core service to initialize..."
