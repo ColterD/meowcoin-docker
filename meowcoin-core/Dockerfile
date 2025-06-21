@@ -10,19 +10,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl tar xz-uti
 # Add build argument for version pinning, default to latest
 ARG MEOWCOIN_VERSION=latest
 
-# Meowcoin release signing keys - add more keys as needed
-# Find keys on meowcoin.org or the Meowcoin-Foundation GitHub organization
-ARG MEOWCOIN_SIGNING_KEYS="1D4428469865B21B2123B4409D334999B8B35B42"
-
 WORKDIR /downloads
 
-# Copy the verification script into the build stage and make it executable
+# Copy the GPG key and verification script into the build stage
+COPY meowcoin-core/meowcoin_release.asc /meowcoin_release.asc
 COPY meowcoin-core/download-and-verify.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/download-and-verify.sh
 
 # Execute the script to download, verify, and extract Meowcoin Core.
-# The script now reads ARG values directly from the environment, which is
-# a more robust pattern than passing them as command-line parameters.
+# The script now uses the bundled GPG key, making the build self-contained.
 RUN bash /usr/local/bin/download-and-verify.sh
 
 # Stage 2: Final image

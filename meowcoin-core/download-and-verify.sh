@@ -16,8 +16,8 @@ set -x
 # set by the Dockerfile's ARG instructions. This is more robust than
 # passing them as command-line arguments.
 
-if [ -z "${MEOWCOIN_SIGNING_KEYS}" ]; then
-  echo "Error: MEOWCOIN_SIGNING_KEYS environment variable is not set." >&2
+if [ -z "${MEOWCOIN_VERSION}" ]; then
+  echo "Error: MEOWCOIN_VERSION environment variable is not set." >&2
   exit 1
 fi
 
@@ -64,14 +64,14 @@ echo "Verifying GPG signature..."
 # Create a temporary directory for GPG so we don't pollute the container
 export GNUPGHOME="$(mktemp -d)"
 
-# Use a keyserver that supports requests over standard HTTPS (port 443)
-# to prevent issues in firewalled environments.
-echo "Importing GPG keys from keys.openpgp.org..."
-gpg --verbose --keyserver hkps://keys.openpgp.org --recv-keys "${MEOWCOIN_SIGNING_KEYS}"
+# Import the bundled GPG key instead of fetching from a network keyserver.
+# This makes the build process more reliable and deterministic.
+echo "Importing bundled GPG key..."
+gpg --batch --import /meowcoin_release.asc
 
 # Verify the signature of the checksums file
 echo "Verifying SHA256SUMS.asc..."
-gpg --verify SHA256SUMS.asc
+gpg --batch --verify SHA256SUMS.asc
 
 echo "Verifying checksum..."
 # Use sha256sum's built-in check feature for robustness. It will exit non-zero if validation fails.
