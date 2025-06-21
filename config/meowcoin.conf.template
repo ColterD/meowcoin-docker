@@ -1,0 +1,35 @@
+# RPC settings
+rpcuser=${MEOWCOIN_RPC_USER}
+rpcpassword=${MEOWCOIN_RPC_PASSWORD}
+rpcallowip=127.0.0.1
+rpcallowip=172.16.0.0/12
+rpcallowip=192.168.0.0/16
+rpcport=${MEOWCOIN_RPC_PORT}
+rpcthreads=8
+rpcworkqueue=64
+
+# P2P settings
+port=${MEOWCOIN_P2P_PORT}
+maxconnections=${MEOWCOIN_MAX_CONNECTIONS}
+bantime=${MEOWCOIN_BANTIME}
+
+# Performance settings
+dbcache=${MEOWCOIN_DB_CACHE}
+maxmempool=${MEOWCOIN_MAX_MEMPOOL}
+par=2
+
+# Feature settings
+txindex=${MEOWCOIN_TXINDEX}
+meowpow=${MEOWCOIN_MEOWPOW}
+
+# Security settings
+disablewallet=1
+listen=1
+bind=0.0.0.0
+dnsseed=1
+upnp=0
+
+# Logging settings
+logtimestamps=1
+logips=1
+shrinkdebugfile=1
