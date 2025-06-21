@@ -154,18 +154,29 @@ fi
 
 # Check if we're in a read-only filesystem
 log_info "Checking filesystem permissions..."
-touch "${MEOWCOIN_HOME}/.test_write" 2>/dev/null
-if [ $? -ne 0 ]; then
-    log_info "Read-only filesystem detected, skipping ownership check"
-else
+if touch "${MEOWCOIN_HOME}/.test_write" 2>/dev/null; then
     rm -f "${MEOWCOIN_HOME}/.test_write"
     log_info "Filesystem is writable, checking ownership..."
-    # Check if the data directory is owned by meowcoin, if not, chown it
-    if [ "$(stat -c '%u' "${MEOWCOIN_DATA_DIR}")" != "$(id -u meowcoin)" ]; then
-        log_info "Fixing ownership of data directory..."
-        chown -R meowcoin:meowcoin "${MEOWCOIN_HOME}" || log_warning "Could not change ownership. Continuing anyway."
+    
+    # Get current ownership info safely
+    if CURRENT_UID=$(stat -c '%u' "${MEOWCOIN_DATA_DIR}" 2>/dev/null) && MEOWCOIN_UID=$(id -u meowcoin 2>/dev/null); then
+        log_info "Current directory owner UID: $CURRENT_UID, meowcoin UID: $MEOWCOIN_UID"
+        if [ "$CURRENT_UID" != "$MEOWCOIN_UID" ]; then
+            log_info "Fixing ownership of data directory..."
+            if chown -R meowcoin:meowcoin "${MEOWCOIN_HOME}"; then
+                log_info "Ownership fixed successfully"
+            else
+                log_warning "Could not change ownership. Continuing anyway."
+            fi
+        else
+            log_info "Ownership is already correct"
+        fi
+    else
+        log_warning "Could not check ownership (stat or id command failed). Continuing anyway."
     fi
     log_info "Ownership check completed"
+else
+    log_info "Read-only filesystem detected, skipping ownership check"
 fi
 
 # --- Credential Management ---
