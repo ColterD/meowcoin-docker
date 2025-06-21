@@ -1,0 +1,116 @@
+version: '3'
+
+services:
+  meowcoin-node:
+    image: debian:bookworm-slim
+    container_name: meowcoin-node
+    restart: unless-stopped
+    ports:
+      - "9766:9766"
+      - "8788:8788"
+    volumes:
+      - meowcoin_data:/data
+    command: >
+      bash -c "
+        apt-get update && 
+        apt-get install -y curl tar xz-utils jq ca-certificates gnupg bash libjemalloc2 openssl gettext &&
+        mkdir -p /data/.meowcoin &&
+        
+        if [ ! -f /data/.meowcoin/meowcoin.conf ]; then
+          echo 'Creating meowcoin.conf...' &&
+          echo 'rpcuser=meowcoinrpc' > /data/.meowcoin/meowcoin.conf &&
+          echo 'rpcpassword='$(openssl rand -hex 32) >> /data/.meowcoin/meowcoin.conf &&
+          echo 'rpcport=9766' >> /data/.meowcoin/meowcoin.conf &&
+          echo 'rpcbind=0.0.0.0' >> /data/.meowcoin/meowcoin.conf &&
+          echo 'rpcallowip=0.0.0.0/0' >> /data/.meowcoin/meowcoin.conf &&
+          echo 'server=1' >> /data/.meowcoin/meowcoin.conf &&
+          echo 'daemon=0' >> /data/.meowcoin/meowcoin.conf &&
+          echo 'txindex=1' >> /data/.meowcoin/meowcoin.conf &&
+          echo 'meowpow=1' >> /data/.meowcoin/meowcoin.conf &&
+          echo 'maxconnections=100' >> /data/.meowcoin/meowcoin.conf &&
+          echo 'dbcache=1024' >> /data/.meowcoin/meowcoin.conf &&
+          echo 'maxmempool=300' >> /data/.meowcoin/meowcoin.conf &&
+          echo 'bantime=86400' >> /data/.meowcoin/meowcoin.conf;
+        fi &&
+        
+        if [ ! -f /usr/local/bin/meowcoind ]; then
+          echo 'Downloading Meowcoin Core...' &&
+          curl -L -o /tmp/meowcoin.tar.gz https://github.com/meowcoin-project/meowcoin/releases/download/v2.0.5/meowcoin-2.0.5-x86_64-linux-gnu.tar.gz &&
+          tar -xzf /tmp/meowcoin.tar.gz -C /tmp &&
+          cp /tmp/meowcoin-*/bin/meowcoind /usr/local/bin/ &&
+          cp /tmp/meowcoin-*/bin/meowcoin-cli /usr/local/bin/ &&
+          rm -rf /tmp/meowcoin* &&
+          chmod +x /usr/local/bin/meowcoind /usr/local/bin/meowcoin-cli;
+        fi &&
+        
+        echo 'Starting Meowcoin Core...' &&
+        exec meowcoind -datadir=/data/.meowcoin
+      "
+
+  meowcoin-monitor:
+    image: debian:bookworm-slim
+    container_name: meowcoin-monitor
+    restart: unless-stopped
+    depends_on:
+      - meowcoin-node
+    volumes:
+      - meowcoin_data:/data:ro
+    command: >
+      bash -c "
+        apt-get update && 
+        apt-get install -y bash bc ca-certificates curl jq netcat-openbsd &&
+        
+        echo 'Meowcoin Monitor Starting...' &&
+        
+        while true; do
+          echo '' &&
+          echo '====================' &&
+          echo '📊 Meowcoin Status' &&
+          echo '⏰ '$(date) &&
+          echo '====================' &&
+          
+          if nc -z meowcoin-node 9766 -w 5; then
+            echo '✅ RPC Server: ONLINE' &&
+            
+            if [ -f /data/.meowcoin/meowcoin.conf ]; then
+              RPC_USER=$(grep '^rpcuser=' /data/.meowcoin/meowcoin.conf | cut -d'=' -f2-) &&
+              RPC_PASSWORD=$(grep '^rpcpassword=' /data/.meowcoin/meowcoin.conf | cut -d'=' -f2-) &&
+              
+              JSON_RPC='{\"jsonrpc\":\"1.0\",\"id\":\"monitor\",\"method\":\"getblockchaininfo\",\"params\":[]}' &&
+              RESPONSE=$(curl -s --user \"${RPC_USER}:${RPC_PASSWORD}\" --data-binary \"${JSON_RPC}\" http://meowcoin-node:9766 2>/dev/null) &&
+              
+              if [ $? -eq 0 ]; then
+                BLOCKS=$(echo \"${RESPONSE}\" | jq '.result.blocks') &&
+                HEADERS=$(echo \"${RESPONSE}\" | jq '.result.headers') &&
+                SYNC_PROGRESS=$(echo \"${RESPONSE}\" | jq '.result.verificationprogress') &&
+                SYNC_PERCENT=$(echo \"${SYNC_PROGRESS} * 100\" | bc -l | awk '{printf \"%.2f\", $0}') &&
+                
+                echo '🔗 Blocks:       '${BLOCKS} &&
+                echo '📋 Headers:      '${HEADERS} &&
+                echo '🔄 Sync:         '${SYNC_PERCENT}'%';
+              else
+                echo '⚠️ RPC Status: UNHEALTHY or STARTING';
+              fi
+            else
+              echo '⚠️ Config not found';
+            fi
+          else
+            echo '❌ RPC Server: OFFLINE or UNREACHABLE';
+          fi &&
+          
+          if [ -d /data/.meowcoin ]; then
+            SIZE=$(du -sh /data/.meowcoin 2>/dev/null | cut -f1) &&
+            echo '💾 Data Size:    '${SIZE} &&
+            
+            FILES=$(find /data/.meowcoin -type f 2>/dev/null | wc -l) &&
+            echo '📁 Files:        '${FILES};
+          fi &&
+          
+          echo '====================' &&
+          sleep 60;
+        done
+      "
+
+volumes:
+  meowcoin_data:
+    driver: local
