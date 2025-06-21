@@ -3,7 +3,8 @@
 FROM debian:bookworm-slim AS fetcher
 
 # Install dependencies needed to download, verify, and extract the release
-RUN apt-get update && apt-get install -y --no-install-recommends curl tar xz-utils jq ca-certificates gnupg && \
+# We add bash to ensure our verification script runs with the correct interpreter.
+RUN apt-get update && apt-get install -y --no-install-recommends curl tar xz-utils jq ca-certificates gnupg bash && \
     rm -rf /var/lib/apt/lists/*
 
 # Add build argument for version pinning, default to latest
@@ -20,7 +21,8 @@ COPY meowcoin-core/download-and-verify.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/download-and-verify.sh
 
 # Execute the script to download, verify, and extract Meowcoin Core
-RUN download-and-verify.sh "${MEOWCOIN_VERSION}" "${MEOWCOIN_SIGNING_KEYS}"
+# We explicitly use bash to ensure consistent behavior.
+RUN bash /usr/local/bin/download-and-verify.sh "${MEOWCOIN_VERSION}" "${MEOWCOIN_SIGNING_KEYS}"
 
 # Stage 2: Final image
 FROM debian:bookworm-slim
