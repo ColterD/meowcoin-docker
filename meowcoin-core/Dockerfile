@@ -15,34 +15,12 @@ ARG MEOWCOIN_SIGNING_KEYS="1D4428469865B21B2123B4409D334999B8B35B42"
 
 WORKDIR /downloads
 
-# Download and extract the specified or latest Meowcoin release
-RUN set -x && \
-    if [ "${MEOWCOIN_VERSION}" = "latest" ]; then \
-      RELEASE_URL=$(curl -s --fail https://api.github.com/repos/Meowcoin-Foundation/Meowcoin/releases/latest); \
-      DOWNLOAD_URL=$(echo "${RELEASE_URL}" | jq -r ".assets[] | select(.name | test(\\"x86_64-linux-gnu.tar.gz$\\")) | .browser_download_url"); \
-      DOWNLOAD_SUMS_URL=$(echo "${RELEASE_URL}" | jq -r ".assets[] | select(.name | test(\\"SHA256SUMS.asc$\\")) | .browser_download_url"); \
-    else \
-      DOWNLOAD_URL="https://github.com/Meowcoin-Foundation/Meowcoin/releases/download/v${MEOWCOIN_VERSION}/meowcoin-${MEOWCOIN_VERSION}-x86_64-linux-gnu.tar.gz"; \
-      DOWNLOAD_SUMS_URL="https://github.com/Meowcoin-Foundation/Meowcoin/releases/download/v${MEOWCOIN_VERSION}/SHA256SUMS.asc"; \
-    fi && \
-    if [ -z "${DOWNLOAD_URL}" ] || [ -z "${DOWNLOAD_SUMS_URL}" ]; then \
-      echo "Error: Could not determine download URL. Please check MEOWCOIN_VERSION and network connectivity." >&2; \
-      exit 1; \
-    fi && \
-    echo "Downloading Meowcoin release from: ${DOWNLOAD_URL}" && \
-    curl --fail -L -o meowcoin.tar.gz "${DOWNLOAD_URL}" && \
-    curl --fail -L -o SHA256SUMS.asc "${DOWNLOAD_SUMS_URL}" && \
-    \
-    echo "Verifying GPG signature..." && \
-    export GNUPGHOME="$(mktemp -d)" && \
-    gpg --keyserver keyserver.ubuntu.com --recv-keys ${MEOWCOIN_SIGNING_KEYS} && \
-    gpg --verify SHA256SUMS.asc && \
-    \
-    echo "Verifying checksum..." && \
-    grep "$(sha256sum meowcoin.tar.gz | awk '{print $1}')" SHA256SUMS.asc && \
-    \
-    tar -xzf meowcoin.tar.gz && \
-    rm -rf "$GNUPGHOME"
+# Copy the verification script into the build stage and make it executable
+COPY meowcoin-core/download-and-verify.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/download-and-verify.sh
+
+# Execute the script to download, verify, and extract Meowcoin Core
+RUN download-and-verify.sh "${MEOWCOIN_VERSION}" "${MEOWCOIN_SIGNING_KEYS}"
 
 # Stage 2: Final image
 FROM debian:bookworm-slim
