@@ -55,9 +55,17 @@ echo "---"
 
 echo "Downloading Meowcoin release..."
 curl --fail -L -o meowcoin.tar.gz "${DOWNLOAD_URL}"
+if [ $? -ne 0 ]; then
+  echo "FATAL: Failed to download Meowcoin Core from ${DOWNLOAD_URL}. curl exited with code $?." >&2
+  exit 3
+fi
 
 echo "Downloading checksums..."
 curl --fail -L -o SHA256SUMS.asc "${DOWNLOAD_SUMS_URL}"
+if [ $? -ne 0 ]; then
+  echo "FATAL: Failed to download checksums from ${DOWNLOAD_SUMS_URL}. curl exited with code $?." >&2
+  exit 3
+fi
 
 # GPG verification requires a temporary, isolated home directory
 echo "Verifying GPG signature..."
@@ -68,17 +76,33 @@ export GNUPGHOME="$(mktemp -d)"
 # This makes the build process more reliable and deterministic.
 echo "Importing bundled GPG key..."
 gpg --batch --import /meowcoin_release.asc
+if [ $? -ne 0 ]; then
+  echo "FATAL: Failed to import GPG key from /meowcoin_release.asc. gpg exited with code $?." >&2
+  exit 3
+fi
 
 # Verify the signature of the checksums file
 echo "Verifying SHA256SUMS.asc..."
 gpg --batch --verify SHA256SUMS.asc
+if [ $? -ne 0 ]; then
+  echo "FATAL: GPG signature verification for SHA256SUMS.asc failed. gpg exited with code $?." >&2
+  exit 3
+fi
 
 echo "Verifying checksum..."
 # Use sha256sum's built-in check feature for robustness. It will exit non-zero if validation fails.
 sha256sum --check --ignore-missing SHA256SUMS.asc
+if [ $? -ne 0 ]; then
+  echo "FATAL: Checksum verification failed. sha256sum exited with code $?." >&2
+  exit 3
+fi
 
 echo "Extracting archive..."
 tar -xzf meowcoin.tar.gz
+if [ $? -ne 0 ]; then
+  echo "FATAL: Failed to extract meowcoin.tar.gz. tar exited with code $?." >&2
+  exit 3
+fi
 
 echo "Cleaning up..."
 rm -f meowcoin.tar.gz SHA256SUMS.asc
