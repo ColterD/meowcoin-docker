@@ -1,8 +1,6 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-# Default to UID 1000 if not set, allows for override via environment variables
-MEOWCOIN_UID=${MEOWCOIN_UID:-1000}
 MEOWCOIN_HOME="/home/meowcoin"
 MEOWCOIN_DATA_DIR="${MEOWCOIN_HOME}/.meowcoin"
 CREDENTIALS_FILE="${MEOWCOIN_DATA_DIR}/.credentials"
@@ -18,7 +16,13 @@ fi
 # Create the data directory and ensure permissions are correct on every start.
 # This covers all necessary files and subdirectories.
 mkdir -p "${MEOWCOIN_DATA_DIR}"
-chown -R meowcoin:meowcoin "${MEOWCOIN_HOME}"
+
+# Check if the data directory is owned by meowcoin, if not, chown it.
+# This avoids a slow recursive chown on every startup.
+if [ "$(stat -c '%u' "${MEOWCOIN_DATA_DIR}")" != "$(id -u meowcoin)" ]; then
+  echo "Ownership of data directory is incorrect, fixing..."
+  chown -R meowcoin:meowcoin "${MEOWCOIN_HOME}"
+fi
 
 # --- Credential Management ---
 # Generate RPC credentials only if they don't exist.
@@ -33,25 +37,27 @@ if [ ! -f "$CREDENTIALS_FILE" ]; then
   echo "✅ Credentials generated and secured."
 fi
 
-# Load credentials from the file
-source "$CREDENTIALS_FILE"
+# Load credentials securely from the file without executing it
+RPC_USER=$(grep '^RPC_USER=' "$CREDENTIALS_FILE" | cut -d'=' -f2-)
+RPC_PASSWORD=$(grep '^RPC_PASSWORD=' "$CREDENTIALS_FILE" | cut -d'=' -f2-)
 
 # --- Configuration File Generation ---
-# Source the environment variables with defaults.
-: "${MEOWCOIN_RPC_PORT:=9766}"
-: "${MEOWCOIN_P2P_PORT:=8788}"
-: "${MEOWCOIN_MAX_CONNECTIONS:=100}"
-: "${MEOWCOIN_DB_CACHE:=1024}"
-: "${MEOWCOIN_MAX_MEMPOOL:=300}"
-: "${MEOWCOIN_TXINDEX:=1}"
-: "${MEOWCOIN_MEOWPOW:=1}"
-: "${MEOWCOIN_BANTIME:=86400}"
+if [ ! -f "${CONFIG_FILE}" ]; then
+  echo "⚙️  No custom meowcoin.conf found. Generating a default one..."
 
-echo "⚙️  Generating meowcoin.conf..."
+  # Source the environment variables with defaults.
+  : "${MEOWCOIN_RPC_PORT:=9766}"
+  : "${MEOWCOIN_P2P_PORT:=8788}"
+  : "${MEOWCOIN_MAX_CONNECTIONS:=100}"
+  : "${MEOWCOIN_DB_CACHE:=1024}"
+  : "${MEOWCOIN_MAX_MEMPOOL:=300}"
+  : "${MEOWCOIN_TXINDEX:=1}"
+  : "${MEOWCOIN_MEOWPOW:=1}"
+  : "${MEOWCOIN_BANTIME:=86400}"
 
-# Use a heredoc to create the config file cleanly.
-# This is simpler and more readable than using sed/envsubst.
-cat > "${CONFIG_FILE}" <<EOF
+  # Use a heredoc to create the config file cleanly.
+  # This is simpler and more readable than using sed/envsubst.
+  cat > "${CONFIG_FILE}" <<EOF
 # RPC settings
 rpcuser=${RPC_USER}
 rpcpassword=${RPC_PASSWORD}
@@ -72,8 +78,11 @@ txindex=${MEOWCOIN_TXINDEX}
 meowpow=${MEOWCOIN_MEOWPOW}
 EOF
 
-# Set secure permissions for the config file
-chmod 600 "${CONFIG_FILE}"
+  # Set secure permissions for the config file
+  chmod 600 "${CONFIG_FILE}"
+else
+  echo "✅ Custom meowcoin.conf found. Skipping generation."
+fi
 
 # Write version file if it doesn't exist
 if [ ! -f "${MEOWCOIN_DATA_DIR}/VERSION" ]; then

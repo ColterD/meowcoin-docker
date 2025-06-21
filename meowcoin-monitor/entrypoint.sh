@@ -1,5 +1,5 @@
-#!/bin/sh
-set -e
+#!/bin/bash
+set -euo pipefail
 
 echo "🔍 Meowcoin Monitor Starting..."
 
@@ -19,14 +19,15 @@ while true; do
   echo "===================="
   
   if [ -f "$CREDENTIALS_FILE" ]; then
-    # Load credentials
-    source "$CREDENTIALS_FILE"
+    # Load credentials securely without executing the file
+    RPC_USER=$(grep '^RPC_USER=' "$CREDENTIALS_FILE" | cut -d'=' -f2-)
+    RPC_PASSWORD=$(grep '^RPC_PASSWORD=' "$CREDENTIALS_FILE" | cut -d'=' -f2-)
     
     # Perform a full, authenticated health check
     JSON_RPC='{"jsonrpc":"1.0","id":"curltext","method":"getblockchaininfo","params":[]}'
-    RESPONSE=$(curl -s --user "${RPC_USER}:${RPC_PASSWORD}" --data-binary "${JSON_RPC}" http://meowcoin-core:${MEOWCOIN_RPC_PORT})
+    RESPONSE=$(curl -s --fail --user "${RPC_USER}:${RPC_PASSWORD}" --data-binary "${JSON_RPC}" "http://meowcoin-core:${MEOWCOIN_RPC_PORT}")
 
-    if echo "${RESPONSE}" | jq -e '.error == null' >/dev/null; then
+    if [ $? -eq 0 ] && echo "${RESPONSE}" | jq -e '.error == null' >/dev/null; then
       BLOCKS=$(echo "${RESPONSE}" | jq '.result.blocks')
       HEADERS=$(echo "${RESPONSE}" | jq '.result.headers')
       DIFFICULTY=$(echo "${RESPONSE}" | jq '.result.difficulty')
@@ -37,7 +38,7 @@ while true; do
       echo "📋 Headers:      ${HEADERS}"
       echo "💪 Difficulty:   ${DIFFICULTY}"
     else
-      ERROR_MSG=$(echo "${RESPONSE}" | jq -r '.error.message')
+      ERROR_MSG=$(echo "${RESPONSE}" | jq -r '.error.message // "Request failed or node is not ready"')
       echo "🟡 RPC Status:   UNHEALTHY or STARTING"
       echo "   Error: ${ERROR_MSG}"
     fi

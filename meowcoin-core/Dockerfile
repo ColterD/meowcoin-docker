@@ -2,17 +2,42 @@
 # Use a debian-based image for glibc compatibility with official releases
 FROM debian:bookworm-slim AS fetcher
 
-# Install dependencies needed to download and extract the release
-RUN apt-get update && apt-get install -y --no-install-recommends curl tar xz-utils jq ca-certificates && \
+# Install dependencies needed to download, verify, and extract the release
+RUN apt-get update && apt-get install -y --no-install-recommends curl tar xz-utils jq ca-certificates gnupg && \
     rm -rf /var/lib/apt/lists/*
+
+# Add build argument for version pinning, default to latest
+ARG MEOWCOIN_VERSION=latest
+
+# Meowcoin release signing keys - add more keys as needed
+# Find keys on meowcoin.org or the Meowcoin-Foundation GitHub organization
+ARG MEOWCOIN_SIGNING_KEYS="1D4428469865B21B2123B4409D334999B8B35B42"
 
 WORKDIR /downloads
 
-# Fetch the latest release URL from the GitHub API and download it
-RUN DOWNLOAD_URL=$(curl -s https://api.github.com/repos/Meowcoin-Foundation/Meowcoin/releases/latest | jq -r ".assets[] | select(.name | test(\"x86_64-linux-gnu.tar.gz$\")) | .browser_download_url") && \
-    echo "Downloading latest Meowcoin release from: ${DOWNLOAD_URL}" && \
+# Download and extract the specified or latest Meowcoin release
+RUN if [ "${MEOWCOIN_VERSION}" = "latest" ]; then \
+      RELEASE_URL=$(curl -s https://api.github.com/repos/Meowcoin-Foundation/Meowcoin/releases/latest); \
+      DOWNLOAD_URL=$(echo "${RELEASE_URL}" | jq -r ".assets[] | select(.name | test(\\"x86_64-linux-gnu.tar.gz$\\")) | .browser_download_url"); \
+      DOWNLOAD_SUMS_URL=$(echo "${RELEASE_URL}" | jq -r ".assets[] | select(.name | test(\\"SHA256SUMS.asc$\\")) | .browser_download_url"); \
+    else \
+      DOWNLOAD_URL="https://github.com/Meowcoin-Foundation/Meowcoin/releases/download/v${MEOWCOIN_VERSION}/meowcoin-${MEOWCOIN_VERSION}-x86_64-linux-gnu.tar.gz"; \
+      DOWNLOAD_SUMS_URL="https://github.com/Meowcoin-Foundation/Meowcoin/releases/download/v${MEOWCOIN_VERSION}/SHA256SUMS.asc"; \
+    fi && \
+    echo "Downloading Meowcoin release from: ${DOWNLOAD_URL}" && \
     curl -L -o meowcoin.tar.gz "${DOWNLOAD_URL}" && \
-    tar -xzf meowcoin.tar.gz
+    curl -L -o SHA256SUMS.asc "${DOWNLOAD_SUMS_URL}" && \
+    \
+    echo "Verifying GPG signature..." && \
+    export GNUPGHOME="$(mktemp -d)" && \
+    gpg --keyserver hkps://keys.openpgp.org --recv-keys ${MEOWCOIN_SIGNING_KEYS} && \
+    gpg --verify SHA256SUMS.asc && \
+    \
+    echo "Verifying checksum..." && \
+    grep "$(sha256sum meowcoin.tar.gz | awk '{print $1}')" SHA256SUMS.asc && \
+    \
+    tar -xzf meowcoin.tar.gz && \
+    rm -rf "$GNUPGHOME"
 
 # Stage 2: Final image
 FROM debian:bookworm-slim
@@ -23,9 +48,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends bash libjemallo
     chmod +x /usr/local/bin/gosu && \
     rm -rf /var/lib/apt/lists/*
 
+# Add build arguments for user and group IDs
+ARG MEOWCOIN_UID=1000
+ARG MEOWCOIN_GID=1000
+
 # Create a non-root user to run the application
 # We use a system user for better security practices
-RUN adduser --system --group --shell /bin/bash meowcoin
+RUN groupadd -g "${MEOWCOIN_GID}" meowcoin && \
+    adduser --system --uid "${MEOWCOIN_UID}" --gid "${MEOWCOIN_GID}" --shell /bin/bash meowcoin
 
 # Copy all necessary files and set permissions
 COPY --from=fetcher /downloads/meowcoin-*/bin/meowcoind /usr/local/bin/

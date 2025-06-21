@@ -8,6 +8,11 @@ services:
     build:
       context: .
       dockerfile: ./meowcoin-core/Dockerfile
+      args:
+        # Uncomment the line below to build a specific Meowcoin version
+        # MEOWCOIN_VERSION: 4.1.0
+        MEOWCOIN_UID: 1000
+        MEOWCOIN_GID: 1000
     container_name: meowcoin-node
     hostname: meowcoin-core
     restart: unless-stopped
@@ -26,6 +31,15 @@ services:
       timeout: 30s
       retries: 5
       start_period: 300s
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ulimits:
+      nproc: 1024
     deploy:
       resources:
         limits:
@@ -34,6 +48,11 @@ services:
         reservations:
           memory: ${RESOURCES_RESERVATION_MEMORY:-2G}
           cpus: '${RESOURCES_RESERVATION_CPUS:-0.5}'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   meowcoin-monitor:
     build:
@@ -44,8 +63,22 @@ services:
       meowcoin-core:
         condition: service_healthy
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
     volumes:
       - meowcoin_data:/data:ro
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ulimits:
+      nproc: 64
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       - MEOWCOIN_RPC_PORT=${MEOWCOIN_RPC_PORT:-9766}
       - MONITOR_INTERVAL=${MONITOR_INTERVAL:-60}
