@@ -14,4 +14,16 @@
 **/Dockerfile.bak
 
 # Meowcoin data directory (if mounted directly)
-meowcoin_data/ 
+meowcoin_data/
+data/
+
+# Log files
+*.log
+logs/
+*.logs
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock 
