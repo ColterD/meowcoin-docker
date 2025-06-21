@@ -1,0 +1,127 @@
+version: '3.8'
+
+# Docker Swarm Configuration for Meowcoin
+# This example provides a configuration for running Meowcoin in a Docker Swarm
+
+services:
+  meowcoin-core:
+    image: ${DOCKER_REGISTRY:-local}/meowcoin-core:${MEOWCOIN_VERSION:-latest}
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.meowcoin == true
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '0.5'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+    environment:
+      - MEOWCOIN_RPC_PORT=9766
+      - MEOWCOIN_P2P_PORT=8788
+      - MEOWCOIN_MAX_CONNECTIONS=100
+      - MEOWCOIN_DB_CACHE=2048
+      - MEOWCOIN_MAX_MEMPOOL=500
+      - MEOWCOIN_TXINDEX=1
+      - MEOWCOIN_MEOWPOW=1
+      - MEOWCOIN_BANTIME=86400
+      - TZ=UTC
+    ports:
+      - "127.0.0.1:9766:9766"  # RPC port (local access only)
+      - "8788:8788"            # P2P port
+    volumes:
+      - meowcoin_data:/home/meowcoin/.meowcoin
+    healthcheck:
+      test: ["CMD", "/healthcheck.sh"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 300s
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    ulimits:
+      nproc: 1024
+      nofile:
+        soft: 65536
+        hard: 65536
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  meowcoin-monitor:
+    image: ${DOCKER_REGISTRY:-local}/meowcoin-monitor:${MEOWCOIN_VERSION:-latest}
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.meowcoin == true
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.2'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    environment:
+      - MEOWCOIN_RPC_PORT=9766
+      - MEOWCOIN_HOST=meowcoin-core
+      - MONITOR_INTERVAL=180
+      - TZ=UTC
+    volumes:
+      - meowcoin_data:/data:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ulimits:
+      nproc: 64
+      nofile:
+        soft: 1024
+        hard: 1024
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+networks:
+  default:
+    driver: overlay
+    attachable: true
+    name: meowcoin-network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+volumes:
+  meowcoin_data:
+    driver: local

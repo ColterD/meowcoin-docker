@@ -1,32 +1,38 @@
-# Meowcoin Docker Compose
-#
-# This file defines the services to run a Meowcoin node and a monitor.
-# It is configured using variables from the .env file.
+version: '3.8'
 
 services:
   meowcoin-core:
     build:
       context: .
-      dockerfile: ./meowcoin-core/Dockerfile
+      dockerfile: ./docker/core/Dockerfile
       args:
-        # Uncomment the line below to build a specific Meowcoin version
-        # MEOWCOIN_VERSION: 4.1.0
-        MEOWCOIN_UID: 1000
-        MEOWCOIN_GID: 1000
-    container_name: meowcoin-node
+        MEOWCOIN_VERSION: ${MEOWCOIN_VERSION:-latest}
+        MEOWCOIN_ARCH: ${MEOWCOIN_ARCH:-x86_64-linux-gnu}
+        MEOWCOIN_UID: ${MEOWCOIN_UID:-1000}
+        MEOWCOIN_GID: ${MEOWCOIN_GID:-1000}
+        SKIP_VERIFY: ${SKIP_VERIFY:-false}
+    image: ${DOCKER_REGISTRY:-local}/meowcoin-core:${MEOWCOIN_VERSION:-latest}
+    container_name: ${CONTAINER_PREFIX:-meowcoin}-node
     hostname: meowcoin-core
     restart: unless-stopped
     environment:
-      # Pass config variables to the entrypoint script
       - MEOWCOIN_RPC_PORT=${MEOWCOIN_RPC_PORT:-9766}
       - MEOWCOIN_P2P_PORT=${MEOWCOIN_P2P_PORT:-8788}
+      - MEOWCOIN_MAX_CONNECTIONS=${MEOWCOIN_MAX_CONNECTIONS:-100}
+      - MEOWCOIN_DB_CACHE=${MEOWCOIN_DB_CACHE:-1024}
+      - MEOWCOIN_MAX_MEMPOOL=${MEOWCOIN_MAX_MEMPOOL:-300}
+      - MEOWCOIN_TXINDEX=${MEOWCOIN_TXINDEX:-1}
+      - MEOWCOIN_MEOWPOW=${MEOWCOIN_MEOWPOW:-1}
+      - MEOWCOIN_BANTIME=${MEOWCOIN_BANTIME:-86400}
+      - TZ=${TZ:-UTC}
     ports:
-      - "127.0.0.1:${MEOWCOIN_RPC_PORT:-9766}:${MEOWCOIN_RPC_PORT:-9766}"
-      - "${MEOWCOIN_P2P_PORT:-8788}:${MEOWCOIN_P2P_PORT:-8788}"
+      - "${MEOWCOIN_RPC_BIND:-127.0.0.1}:${MEOWCOIN_RPC_PORT:-9766}:${MEOWCOIN_RPC_PORT:-9766}"
+      - "${MEOWCOIN_P2P_BIND:-0.0.0.0}:${MEOWCOIN_P2P_PORT:-8788}:${MEOWCOIN_P2P_PORT:-8788}"
     volumes:
       - meowcoin_data:/home/meowcoin/.meowcoin
+      - ${MEOWCOIN_CUSTOM_CONFIG:-/dev/null}:/home/meowcoin/.meowcoin/meowcoin.conf:ro
     healthcheck:
-      test: ["CMD", "gosu", "meowcoin", "meowcoin-cli", "-datadir=/home/meowcoin/.meowcoin", "getblockchaininfo"]
+      test: ["CMD", "/healthcheck.sh"]
       interval: 60s
       timeout: 30s
       retries: 5
@@ -36,10 +42,15 @@ services:
       - /tmp
     cap_drop:
       - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     security_opt:
       - no-new-privileges:true
     ulimits:
       nproc: 1024
+      nofile:
+        soft: 65536
+        hard: 65536
     deploy:
       resources:
         limits:
@@ -57,38 +68,52 @@ services:
   meowcoin-monitor:
     build:
       context: .
-      dockerfile: ./meowcoin-monitor/Dockerfile
-    container_name: meowcoin-monitor
+      dockerfile: ./docker/monitor/Dockerfile
+    image: ${DOCKER_REGISTRY:-local}/meowcoin-monitor:${MEOWCOIN_VERSION:-latest}
+    container_name: ${CONTAINER_PREFIX:-meowcoin}-monitor
     depends_on:
       meowcoin-core:
         condition: service_healthy
     restart: unless-stopped
+    environment:
+      - MEOWCOIN_RPC_PORT=${MEOWCOIN_RPC_PORT:-9766}
+      - MEOWCOIN_HOST=meowcoin-core
+      - MONITOR_INTERVAL=${MONITOR_INTERVAL:-180}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - meowcoin_data:/data:ro
     read_only: true
     tmpfs:
       - /tmp
-    volumes:
-      - meowcoin_data:/data:ro
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
     ulimits:
       nproc: 64
+      nofile:
+        soft: 1024
+        hard: 1024
+    deploy:
+      resources:
+        limits:
+          memory: ${MONITOR_LIMIT_MEMORY:-256M}
+          cpus: '${MONITOR_LIMIT_CPUS:-0.2}'
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
+        max-size: "5m"
         max-file: "3"
-    environment:
-      - MEOWCOIN_RPC_PORT=${MEOWCOIN_RPC_PORT:-9766}
-      - MONITOR_INTERVAL=${MONITOR_INTERVAL:-60}
 
 networks:
   default:
     driver: bridge
-    name: meowcoin-network
+    name: ${NETWORK_NAME:-meowcoin-network}
+    ipam:
+      config:
+        - subnet: ${NETWORK_SUBNET:-172.20.0.0/24}
 
 volumes:
   meowcoin_data:
     driver: local
-    name: meowcoin_data
+    name: ${VOLUME_NAME:-meowcoin_data}

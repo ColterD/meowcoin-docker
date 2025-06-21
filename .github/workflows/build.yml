@@ -1,0 +1,90 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        meowcoin-version: [latest, "2.0.5"]
+        architecture: [x86_64-linux-gnu, aarch64-linux-gnu]
+        include:
+          - architecture: x86_64-linux-gnu
+            platform: linux/amd64
+          - architecture: aarch64-linux-gnu
+            platform: linux/arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Core Image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./docker/core/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: false
+          load: true
+          tags: meowcoin-core:${{ matrix.meowcoin-version }}-${{ matrix.architecture }}
+          build-args: |
+            MEOWCOIN_VERSION=${{ matrix.meowcoin-version }}
+            MEOWCOIN_ARCH=${{ matrix.architecture }}
+
+      - name: Build Monitor Image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./docker/monitor/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: false
+          load: true
+          tags: meowcoin-monitor:${{ matrix.meowcoin-version }}-${{ matrix.architecture }}
+
+      - name: Test Core Image
+        run: |
+          docker run --rm meowcoin-core:${{ matrix.meowcoin-version }}-${{ matrix.architecture }} meowcoind --version
+
+      - name: Test Monitor Image
+        run: |
+          docker run --rm -d --name meowcoin-monitor-test meowcoin-monitor:${{ matrix.meowcoin-version }}-${{ matrix.architecture }}
+          sleep 5
+          docker logs meowcoin-monitor-test
+          docker stop meowcoin-monitor-test
+
+  compose-test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create .env file
+        run: |
+          cp .env.example .env
+          echo "MEOWCOIN_VERSION=2.0.5" >> .env
+          echo "SKIP_VERIFY=true" >> .env
+
+      - name: Start containers
+        run: docker-compose up -d --build
+
+      - name: Wait for containers to start
+        run: sleep 30
+
+      - name: Check container status
+        run: docker-compose ps
+
+      - name: Check logs
+        run: docker-compose logs
+
+      - name: Stop containers
+        run: docker-compose down -v
